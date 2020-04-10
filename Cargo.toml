@@ -1,0 +1,16 @@
+[package]
+name = "hhs"
+version = "0.1.0"
+authors = ["Julian Libiseller-Egger <37619875+zeawoas@users.noreply.github.com>"]
+edition = "2018"
+
+
+[dependencies]
+num-traits = "0.2.11"
+bitvec = "0.17.4"
+itertools = "0.9.0"
+
+
+[[bin]]
+name = "hhs"
+path = "src/bin/main.rs"
