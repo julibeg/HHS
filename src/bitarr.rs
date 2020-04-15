@@ -2,8 +2,8 @@ use bitvec::prelude as bv;
 use itertools::izip;
 use std::fmt;
 
-/// set trailing bits of a `BitVec` (i.e. bits in the last element not belonging to the actual
-/// `BitVec`) to zero.
+/// Set trailing bits of a `BitVec` (i.e. bits in the last element not belonging to the actual
+/// `BitVec`) to zero. Should be endian-agnostic.
 fn zero_trailing_bits<O, T>(bitvec: &mut bv::BitVec<O, T>)
 where
     O: bitvec::order::BitOrder,
@@ -76,6 +76,22 @@ impl BitArrNa {
         }
 
         result
+    }
+
+    pub fn len(&self) -> usize {
+        self.bits.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn count_ones(&self) -> usize {
+        self.bits.count_ones()
+    }
+
+    pub fn count_zeros(&self) -> usize {
+        self.bits.count_zeros() - self.not_nas.count_zeros()
     }
 }
 
