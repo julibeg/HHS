@@ -1,4 +1,5 @@
 use hhs::*;
+use std::fs;
 
 fn main() {
     let args = cli::parse_cmd_line();
@@ -10,17 +11,36 @@ fn main() {
         .build_global()
         .expect("Error initializing threadpool");
 
-    // println!("{:?}", args);
-
+    // setup HHS calculator instance
+    println!("Reading ipnut data...\n");
     let mut calc = Calc::from_args(&args);
 
-    // for snp in calc.snps_arr {
-    //     println!("{}\n-------", snp);
-    // }
-    // println!("{:?}", calc.snps_arr);
-
+    // prepare weights, distances and scores
+    println!("Calculating weights, average pairwise distances and initial scores...\n");
     calc.prepare_weights();
     calc.get_p1g1_relative_avg_dists();
     calc.get_scores();
-    calc.hhs_update_scores(1e-4, 1e6 as usize);
+
+    // run HHS and convert result to string
+    println!("Running HHS...");
+    let active = calc.hhs_update_scores(args.delta, args.iterations as usize);
+    let result_string = active
+        .into_iter()
+        .map(|i| i.to_string())
+        .collect::<Vec<String>>()
+        .join(", ");
+
+    // print result to stdout or file
+    match args.out_fname {
+        Some(fname) => {
+            println!("Writing result to {}\n", fname);
+            fs::write(fname, result_string).unwrap_or_else(|err| {
+                eprintln!("Error creating output file: {}", err);
+                std::process::exit(1);
+            });
+        }
+        None => println!("Result:\n{}\n", result_string),
+    };
+
+    println!("Done");
 }

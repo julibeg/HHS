@@ -16,12 +16,15 @@ pub fn parse_cmd_line() -> Args {
             false-positives caused by overlapping genotypes (e.g. co-occurrent resistance).\n\
             The input file holding the SNPs should look like: \n\n\
             10X0101X \n\
-            X00X1001 \t with one SNP per row (and one sample per column) and 'X' denoting missing \
-            values (any character other than '0' or '1' can be selected to represent NAs). \n\
+            X00X1001 \n\n\
+            with one SNP per row (and one sample per column). 'X' denotes missing \
+            values (any character other than '0' or '1' can be selected to represent NAs). \
+            The file can also be transposed (one sample per row and one SNP per column) if the \
+            -T flag is provided.\n\
             The input file with the phenotypes should have the same layout but feature only a \
             single line. Samples with missing phenotype values are not allowed (i.e. no 'X's in \
             the phenotype file) and should be removed from all input files prior analysis. \n\
-            The pairwise distance matrix should be provided in a csv file with '0's in the \
+            The symmetric pairwise distance matrix should be provided in a csv file with '0's in the \
             diagonal.
             ",
         )
@@ -70,7 +73,7 @@ pub fn parse_cmd_line() -> Args {
         )
         .arg(
             clap::Arg::with_name("transposed")
-                .help("SNPs input file is transposed (SNPs per column, samples per row)")
+                .help("use when SNPs input file is transposed (SNPs per column, samples per row)")
                 .short("T")
                 .long("transposed")
                 .display_order(5),
@@ -82,17 +85,17 @@ pub fn parse_cmd_line() -> Args {
                 .short("i")
                 .long("iter")
                 .value_name("NUM")
-                .default_value("1e5")
+                .default_value("3e4")
                 .display_order(6),
         )
         .arg(
             clap::Arg::with_name("delta")
-            .help("effect size multiplier (higher --> faster but coarser results)")
+            .help("effect size multiplier (higher --> faster, but coarser results)")
             .takes_value(true)
             .short("D")
             .long("delta")
             .value_name("NUM")
-            .default_value("1e-4")
+            .default_value("1e-3")
             .display_order(7),
 
         )
@@ -187,7 +190,7 @@ pub fn parse_cmd_line() -> Args {
     let phen_fname = matches.value_of("phen").unwrap().to_string();
     let dists_fname = matches.value_of("dist").unwrap().to_string();
     let iterations =
-        clap::value_t!(matches.value_of("iterations"), usize).unwrap_or_else(|e| e.exit());
+        clap::value_t!(matches.value_of("iterations"), f32).unwrap_or_else(|e| e.exit()) as usize;
     let delta =
         clap::value_t!(matches.value_of("delta"), f32).unwrap_or_else(|e| e.exit());
     let gt_weights = match matches.value_of("gt_weights").unwrap() {
@@ -210,6 +213,10 @@ pub fn parse_cmd_line() -> Args {
     let p1g1_filter =
         clap::value_t!(matches.value_of("p1g1_filter"), u32).unwrap_or_else(|e| e.exit());
     let threads = clap::value_t!(matches.value_of("threads"), usize).unwrap_or_else(|e| e.exit());
+    let out_fname = match matches.value_of("output") {
+        Some(fname) => Some(fname.to_string()),
+        None => None
+    };
 
     Args {
         snps_fname,
@@ -227,5 +234,6 @@ pub fn parse_cmd_line() -> Args {
         dist_weight,
         p1g1_filter,
         threads,
+        out_fname,
     }
 }

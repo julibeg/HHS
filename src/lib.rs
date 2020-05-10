@@ -29,6 +29,8 @@ pub struct Args {
     pub snps_file_transposed: bool,
     pub phen_fname: String,
     pub dists_fname: String,
+    pub iterations: usize,
+    pub delta: f32,
     pub gt_weights: GtWeights,
     pub rel_gt_weight: f32,
     pub phen_weights: Option<Array2<f32>>,
@@ -37,40 +39,7 @@ pub struct Args {
     pub dist_weight: f32,
     pub p1g1_filter: u32,
     pub threads: usize,
-}
-
-impl std::default::Default for Args {
-    fn default() -> Args {
-        Args {
-            // test set 1
-            // snps_fname: "9586snps_199samples.gt.filt".to_string(),
-            // phen_fname: "199samples.phen.filt".to_str:?ing(),
-            // dists_fname: "199samples_9586snps.dists.filt".to_string(),
-
-            // test set 2
-            // phen_fname: "test.phen".to_string(),
-            // phen_fname: "199_ones.txt".to_string(),
-            // dists_fname: "test.dists".to_string(),
-
-            // real set INH
-            snps_fname: "data_for_rust_impl/inh.gt.T".to_string(),
-            phen_fname: "data_for_rust_impl/inh.phen".to_string(),
-            dists_fname: "data_for_rust_impl/inh.dists".to_string(),
-
-            snps_na_char: '2',
-            snps_file_transposed: false,
-            gt_weights: GtWeights::Single(None),
-            // gt_weights: GtWeights::All(None),
-            // gt_weights: GtWeights::None,
-            rel_gt_weight: 1.,
-            phen_weights: None,
-            rel_phen_weight: 1.,
-            p0g1_extra_weight: 1f32,
-            dist_weight: 1f32,
-            p1g1_filter: 2u32,
-            threads: 1usize,
-        }
-    }
+    pub out_fname: Option<String>,
 }
 
 #[derive(fmt::Debug)]
@@ -278,7 +247,7 @@ impl Calc {
         (p1g1, p0g0, p1g0, p0g1)
     }
 
-    pub fn hhs_update_scores(&mut self, delta: f32, n_iter: usize) {
+    pub fn hhs_update_scores(&mut self, delta: f32, n_iter: usize) -> Vec<usize> {
         let orig_scores = self
             .scores
             .as_ref()
@@ -339,7 +308,7 @@ impl Calc {
 
             if n % (n_iter / 10) == 0 {
                 println!(
-                    "{} iterations done -- SNPs remaining: {:?}",
+                    "{} iterations done -- SNPs remaining: {}",
                     n,
                     above_zero(&scores)
                 );
@@ -349,11 +318,10 @@ impl Calc {
         let norm_factor = sum / scores.iter().sum::<f32>();
         scores.iter_mut().for_each(|x| *x *= norm_factor);
 
-        println!("\nFinal result: {} SNPs remain:", above_zero(&scores));
+        println!("\nHHS done: {} SNPs remain\n", above_zero(&scores));
+        self.scores = Some(Array1::from(scores));
         active.sort();
-        for score in active {
-            print!("{} ", score);
-        }
+        active
     }
 
     fn get_p1g1g1(&self, snps_a: &BitArrNa, snps_b: &BitArrNa) -> f32 {
