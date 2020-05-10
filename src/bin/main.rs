@@ -16,7 +16,7 @@ fn main() {
     let mut calc = Calc::from_args(&args);
 
     // prepare weights, distances and scores
-    println!("Calculating weights, average pairwise distances and initial scores...\n");
+    println!("Preparing weights, calculating average pairwise distances and filtering initial scores...\n");
     calc.prepare_weights();
     calc.get_p1g1_relative_avg_dists();
     calc.get_scores();
