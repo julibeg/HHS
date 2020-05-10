@@ -17,6 +17,7 @@ where
     }
 }
 
+#[derive(fmt::Debug)]
 pub struct BitArrNa {
     pub bits: bv::BitVec<bv::Local, usize>,
     pub not_nas: bv::BitVec<bv::Local, usize>,
