@@ -28,7 +28,7 @@ in `/target/release`
 
 
 ## Usage example
-Input files to test the installation are in `/example_files`. They are from a *M. tuberculosis* dataset with resistance 
+Input files to test the installation are in `example_files.tar.gz`. They are from a *M. tuberculosis* dataset with resistance 
 to isoniazid.
 The pairwise distances are already provided in `inh.dist`, but could be generated with 
 ```
