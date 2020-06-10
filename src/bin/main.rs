@@ -39,7 +39,7 @@ fn main() {
                 std::process::exit(1);
             });
         }
-        None => println!("Result:\n{}\n", result_string),
+        None => println!("Indices of remaining SNPs:\n{}\n", result_string),
     };
 
     println!("Done");
