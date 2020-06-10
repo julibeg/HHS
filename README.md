@@ -35,6 +35,8 @@ The pairwise distances are already provided in `inh.dist`, but could be generate
 ./binary_hamming_dist -i inh.gt -n 2 -o inh.dists -t N
 ```
 using [binary_hamming_dist](https://github.com/julibeg/binary-hamming-dist) with `N` threads. 
+
+
 For running 30,000 iterations (the default) of HHS please type 
 ```
 ./hhs -s inh.gt -p inh.phen -d inh.dists -n 2 -t N --p1g1_filter 3 -T
