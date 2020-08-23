@@ -56,6 +56,7 @@ pub struct Calc {
     pub dists: DistMat<f32>,
     pub p1g1_avg_dists: Option<Array1<f32>>,
     pub scores: Option<Array1<f32>>,
+    pub active: Option<Vec<usize>>,
 }
 
 impl Calc {
@@ -81,6 +82,7 @@ impl Calc {
             dists,
             p1g1_avg_dists: None,
             scores: None,
+            active: None,
         }
     }
 
@@ -176,7 +178,7 @@ impl Calc {
             GtWeights::Single(Some(weights)) => weights,
             GtWeights::All(Some(weights)) => weights,
             _ => panic!(
-                "Error: Cannot calculate scores with unset gt_weights: {:?}",
+                "Error: Cannot calculate scores with unset gt_weights: {:?}.",
                 self.gt_weights
             ),
         };
@@ -247,7 +249,7 @@ impl Calc {
         (p1g1, p0g0, p1g0, p0g1)
     }
 
-    pub fn hhs_update_scores(&mut self, delta: f32, n_iter: usize) -> Vec<usize> {
+    pub fn hhs_update_scores(&mut self, delta: f32, n_iter: usize) {
         let orig_scores = self
             .scores
             .as_ref()
@@ -293,9 +295,7 @@ impl Calc {
                 });
 
             // remove the indices of SNPs whose score fell below 0 from `active`
-            // active.retain(|&i| scores[i] > 1e-5); // v1
             for i in (0..active.len()).rev() {
-                // v2 (needs less shuffling)
                 if new_scores[i] <= 1e-5 {
                     active.swap_remove(i);
                     new_scores.swap_remove(i);
@@ -314,14 +314,17 @@ impl Calc {
                 );
             }
         }
-        // scores = &scores / scores.iter().sum() * sum;
         let norm_factor = sum / scores.iter().sum::<f32>();
         scores.iter_mut().for_each(|x| *x *= norm_factor);
 
         println!("\nHHS done: {} SNPs remain\n", above_zero(&scores));
+
+        // due to the use of swap_remove above, the SNPs are no longer sorted --> sort again
+        let mut zipped = active.iter().zip(scores).collect::<Vec<_>>();
+        zipped.sort_by_key(|(i, _)| *i);
+        let (active, scores): (Vec<usize>, Vec<f32>) = zipped.into_iter().unzip();
         self.scores = Some(Array1::from(scores));
-        active.sort();
-        active
+        self.active = Some(active);
     }
 
     fn get_p1g1g1(&self, snps_a: &BitArrNa, snps_b: &BitArrNa) -> f32 {
@@ -334,6 +337,24 @@ impl Calc {
             p1g1g1 += (p1 & g1_a & g1_b).count_ones() as f32;
         }
         p1g1g1
+    }
+
+    /// Write scores to a buffer
+    pub fn write_scores<Buffer: io::Write>(&self, buffer: &mut Buffer) {
+        let scores = self
+            .scores
+            .as_ref()
+            .expect("Error: No scores calculated yet.");
+        let indices = self
+            .active
+            .as_ref()
+            .expect("Error: No scores calculated yet.");
+
+        writeln!(buffer, "SNP_idx,score").unwrap_or_else(|_| panic!("Error writing output"));
+        for (i, score) in indices.iter().zip(scores) {
+            writeln!(buffer, "{},{}", i, score)
+                .unwrap_or_else(|_| panic!("Error writing score with index {}", i));
+        }
     }
 }
 

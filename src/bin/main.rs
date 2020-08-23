@@ -1,5 +1,6 @@
 use hhs::*;
 use std::fs;
+use std::io;
 
 fn main() {
     let args = cli::parse_cmd_line();
@@ -23,23 +24,23 @@ fn main() {
 
     // run HHS and convert result to string
     println!("Running HHS...");
-    let active = calc.hhs_update_scores(args.delta, args.iterations as usize);
-    let result_string = active
-        .into_iter()
-        .map(|i| i.to_string())
-        .collect::<Vec<String>>()
-        .join(", ");
+    calc.hhs_update_scores(args.delta, args.iterations as usize);
 
     // print result to stdout or file
     match args.out_fname {
         Some(fname) => {
             println!("Writing result to {}\n", fname);
-            fs::write(fname, result_string).unwrap_or_else(|err| {
-                eprintln!("Error creating output file: {}", err);
+            let mut file = fs::File::create(&fname).unwrap_or_else(|err| {
+                eprintln!("Error opening output file: {}", err);
                 std::process::exit(1);
             });
+            calc.write_scores(&mut file);
         }
-        None => println!("Indices of remaining SNPs:\n{}\n", result_string),
+
+        None => {
+            println!("Writing result to STDOUT:\n");
+            calc.write_scores(&mut io::stdout());
+        }
     };
 
     println!("Done");

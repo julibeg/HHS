@@ -22,7 +22,7 @@ impl<T> DistMat<T> {
 
 impl<T> DistMat<T>
 where
-    T: num_traits::Num + std::string::ToString + Copy,
+    T: num::Num + std::string::ToString + Copy,
 {
     /// Write DistMat to buffer in square/symmetric form
     pub fn write_csv_symmetric<Buffer: io::Write>(&self, buffer: &mut Buffer) {
@@ -47,7 +47,7 @@ where
 
 impl<T> DistMat<T>
 where
-    T: num_traits::Num,
+    T: num::Num,
 {
     /// generate DistMat from .csv file
     pub fn from_csv_symmetric(infname: &str) -> Result<DistMat<T>, io::Error> {
@@ -104,7 +104,7 @@ where
 
 impl<T> DistMat<T>
 where
-    T: num_traits::Num + Copy + std::fmt::Debug + num_traits::cast::ToPrimitive,
+    T: num::Num + Copy + std::fmt::Debug + num::cast::ToPrimitive,
 {
     /// Get the average pairwise distance among the samples specified by `indices`.
     /// assumes `indices` to be sorted. Goes over every index in indices and considers all

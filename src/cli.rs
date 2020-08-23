@@ -10,7 +10,7 @@ const ALPHANUM_EXCEPT_01: &[&str] = &[
 pub fn parse_cmd_line() -> Args {
     let matches = clap::App::new("Hungry, Hungry SNPos")
         .about(
-            "Run HHS on a list of SNPs, a pairwise distance matrix and a binary phenotype (e.g. \
+            "Run HHS on a list of SNPs, a pairwise distance matrix and binary phenotypes (e.g. \
             antibiotic resistance). \
             The algorithm finds SNPs associated with the positive phenotype while removing \
             false-positives caused by overlapping genotypes (e.g. co-occurrent resistance).\n\

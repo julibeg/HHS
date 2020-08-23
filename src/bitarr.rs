@@ -59,7 +59,7 @@ impl BitArrNa {
 
     pub fn dist<T>(&self, other: &BitArrNa) -> T
     where
-        T: num_traits::Num + num_traits::cast::FromPrimitive,
+        T: num::Num + num::cast::FromPrimitive,
     {
         let mut result: T = T::zero();
 
