@@ -9,7 +9,7 @@ use rayon::prelude::*;
 use std::fmt;
 use std::fs;
 use std::io;
-use std::io::BufRead;
+use std::io::prelude::*;
 
 mod bitarr;
 pub mod cli;
@@ -30,6 +30,7 @@ pub struct Args {
     pub phen_fname: String,
     pub dists_fname: String,
     pub iterations: usize,
+    pub log_every: usize,
     pub delta: f32,
     pub gt_weights: GtWeights,
     pub rel_gt_weight: f32,
@@ -40,6 +41,7 @@ pub struct Args {
     pub p1g1_filter: u32,
     pub threads: usize,
     pub out_fname: Option<String>,
+    pub log_fname: Option<String>,
 }
 
 #[derive(fmt::Debug)]
@@ -249,7 +251,24 @@ impl Calc {
         (p1g1, p0g0, p1g0, p0g1)
     }
 
-    pub fn hhs_update_scores(&mut self, delta: f32, n_iter: usize) {
+    pub fn hhs_update_scores(
+        &mut self,
+        delta: f32,
+        n_iter: usize,
+        log_every: usize,
+        logfile_fname: Option<&String>,
+    ) {
+        // initiliaze log file if there will be logging
+        let mut logfile = None;
+        if let Some(fname) = logfile_fname {
+            if log_every > 0 {
+                logfile = Some(fs::File::create(&fname).unwrap_or_else(|err| {
+                    eprintln!("Error opening log file: {}", err);
+                    std::process::exit(1);
+                }));
+            }
+        }
+
         let orig_scores = self
             .scores
             .as_ref()
@@ -272,6 +291,13 @@ impl Calc {
         active.shrink_to_fit();
 
         for n in 0..n_iter {
+            // potential logging
+            if let Some(file) = logfile.as_mut() {
+                if n % log_every == 0 {
+                    write!(file, "{} iterations: ", n).expect("Error writing output");
+                    write_scores_single_line(file, &scores, &active);
+                }
+            }
             new_scores
                 .par_iter_mut()
                 .zip(&active)
@@ -302,22 +328,29 @@ impl Calc {
                 }
             }
 
-            // update scores before next iteration
+            // update and rescale scores before next iteration
             scores.truncate(new_scores.len());
             scores.copy_from_slice(&new_scores);
+            let norm_factor = sum / scores.iter().sum::<f32>();
+            scores.iter_mut().for_each(|x| *x *= norm_factor);
 
+            // write progress to STDOUT
             if n % (n_iter / 10) == 0 {
-                println!(
-                    "{} iterations done -- SNPs remaining: {}",
-                    n,
-                    above_zero(&scores)
-                );
+                println!("{} iterations done -- SNPs remaining: {}", n, scores.len());
             }
         }
-        let norm_factor = sum / scores.iter().sum::<f32>();
-        scores.iter_mut().for_each(|x| *x *= norm_factor);
 
-        println!("\nHHS done: {} SNPs remain\n", above_zero(&scores));
+        println!(
+            "\nAll {} iterations done: {} SNPs remain\n",
+            n_iter,
+            scores.len()
+        );
+
+        // if there's logging, also log the final result
+        if let Some(file) = logfile.as_mut() {
+            write!(file, "{} iterations: ", n_iter).expect("Error writing output");
+            write_scores_single_line(file, &scores, &active);
+        }
 
         // due to the use of swap_remove above, the SNPs are no longer sorted --> sort again
         let mut zipped = active.iter().zip(scores).collect::<Vec<_>>();
@@ -339,8 +372,8 @@ impl Calc {
         p1g1g1
     }
 
-    /// Write scores to a buffer
-    pub fn write_scores<Buffer: io::Write>(&self, buffer: &mut Buffer) {
+    /// Write scores to a buffer in csv format
+    pub fn write_scores_csv<Buffer: io::Write>(&self, buffer: &mut Buffer) {
         let scores = self
             .scores
             .as_ref()
@@ -349,13 +382,36 @@ impl Calc {
             .active
             .as_ref()
             .expect("Error: No scores calculated yet.");
+        // check if there are scores to write and write them
+        if (scores.len() == indices.len()) & !scores.is_empty() {
+            writeln!(buffer, "SNP_idx,score").expect("Error writing output");
+            for (i, score) in indices.iter().zip(scores) {
+                writeln!(buffer, "{},{}", i, score)
+                    .unwrap_or_else(|_| panic!("Error writing score with index {}", i));
+            }
+        }
+    }
+}
 
-        writeln!(buffer, "SNP_idx,score").unwrap_or_else(|_| panic!("Error writing output"));
-        for (i, score) in indices.iter().zip(scores) {
-            writeln!(buffer, "{},{}", i, score)
+/// Write scores to a buffer in a single line in `index: score` format
+pub fn write_scores_single_line<Buffer, T1, T2>(buffer: &mut Buffer, scores: &[T1], indices: &[T2])
+where
+    Buffer: io::Write,
+    T1: fmt::Display,
+    T2: fmt::Display,
+{
+    // check if there are scores to write and write them
+    if (scores.len() == indices.len()) & !scores.is_empty() {
+        let mut zipped = indices.iter().zip(scores);
+        let (i, score) = zipped.next().unwrap();
+        write!(buffer, "{}: {}", i, score)
+            .unwrap_or_else(|_| panic!("Error writing score with index {}", i));
+        for (i, score) in zipped {
+            write!(buffer, ", {}: {}", i, score)
                 .unwrap_or_else(|_| panic!("Error writing score with index {}", i));
         }
     }
+    writeln!(buffer).expect("Error writing output");
 }
 
 /// read input file with snps in rows and samples in columns like
@@ -501,14 +557,4 @@ pub fn max_a(arr: &Array1<f32>) -> f32 {
 
 pub fn max2(arr: &Array2<f32>) -> f32 {
     arr.iter().fold(0f32, |a, &b| a.max(b))
-}
-
-pub fn above_zero(arr: &[f32]) -> f32 {
-    arr.iter()
-        .fold(0f32, |acc, x| if x > &0. { acc + 1. } else { acc })
-}
-
-pub fn above_zero_a(arr: &Array1<f32>) -> f32 {
-    arr.iter()
-        .fold(0f32, |acc, x| if x > &0. { acc + 1. } else { acc })
 }

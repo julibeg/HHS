@@ -24,8 +24,8 @@ pub fn parse_cmd_line() -> Args {
             The input file with the phenotypes should have the same layout but feature only a \
             single line. Samples with missing phenotype values are not allowed (i.e. no 'X's in \
             the phenotype file) and should be removed from all input files prior analysis. \n\
-            The symmetric pairwise distance matrix should be provided in a csv file with '0's in the \
-            diagonal.
+            The symmetric pairwise distance matrix should be provided in a csv file with '0's in \
+            the diagonal.
             ",
         )
         .version(clap::crate_version!())
@@ -90,18 +90,19 @@ pub fn parse_cmd_line() -> Args {
         )
         .arg(
             clap::Arg::with_name("delta")
-            .help("effect size multiplier (higher --> faster, but coarser results)")
-            .takes_value(true)
-            .short("D")
-            .long("delta")
-            .value_name("NUM")
-            .default_value("1e-3")
-            .display_order(7),
-
+                .help("effect size multiplier (higher --> faster, but coarser results)")
+                .takes_value(true)
+                .short("D")
+                .long("delta")
+                .value_name("NUM")
+                .default_value("1e-3")
+                .display_order(7),
         )
         .arg(
             clap::Arg::with_name("output")
-                .help("output file; if missing, result is printed to STDOUT")
+                .help(
+                    "output file; if missing, result is printed to STDOUT.",
+                )
                 .takes_value(true)
                 .short("o")
                 .long("output")
@@ -181,6 +182,28 @@ pub fn parse_cmd_line() -> Args {
                 .default_value("2")
                 .display_order(15),
         )
+        .arg(
+            clap::Arg::with_name("log_every")
+                .help(
+                    "Write intermediate results every NUM iterations to the output file. \
+                If '0', no logging will take place. Otherwise, a log file must be specified.",
+                )
+                .takes_value(true)
+                .long("log_every")
+                .value_name("NUM")
+                .default_value("0")
+                .display_order(16),
+        )
+        .arg(
+            clap::Arg::with_name("logfile")
+                .help(
+                    "log file; required if `log_every` is other than '0'",
+                )
+                .takes_value(true)
+                .long("logfile")
+                .value_name("FILE")
+                .display_order(17),
+        )
         .get_matches();
 
     // it's safe to call `unwrap` on arguments `required` by clap.
@@ -191,14 +214,16 @@ pub fn parse_cmd_line() -> Args {
     let dists_fname = matches.value_of("dist").unwrap().to_string();
     let iterations =
         clap::value_t!(matches.value_of("iterations"), f32).unwrap_or_else(|e| e.exit()) as usize;
-    let delta =
-        clap::value_t!(matches.value_of("delta"), f32).unwrap_or_else(|e| e.exit());
+    let log_every =
+        clap::value_t!(matches.value_of("log_every"), f32).unwrap_or_else(|e| e.exit()) as usize;
+    let delta = clap::value_t!(matches.value_of("delta"), f32).unwrap_or_else(|e| e.exit());
     let gt_weights = match matches.value_of("gt_weights").unwrap() {
         "all" => GtWeights::All(None),
         "single" => GtWeights::Single(None),
         _ => {
-            // redundant error handling required for avoiding type mismatch
-            eprintln!("Argument for \'gt_weights\' must be \'all\' or \'single\'");
+            // redundant error handling required for avoiding type mismatch. The validity of the
+            // arguments has already been checked by clapped.
+            eprintln!("Argument for 'gt_weights' must be 'all' or 'single'");
             std::process::exit(1);
         }
     };
@@ -215,7 +240,23 @@ pub fn parse_cmd_line() -> Args {
     let threads = clap::value_t!(matches.value_of("threads"), usize).unwrap_or_else(|e| e.exit());
     let out_fname = match matches.value_of("output") {
         Some(fname) => Some(fname.to_string()),
-        None => None
+        None => None,
+    };
+    let log_fname = match matches.value_of("logfile") {
+        Some(fname) => Some(fname.to_string()),
+        None => {
+            // when log_every != 0 we need a log file --> throw an error if there is none
+            if log_every == 0 {
+                None
+            } else {
+                eprintln!(
+                    "Error: A log file is required (You specified that intermediate \
+                    results should be logged every {} iterations.)",
+                    log_every
+                );
+                std::process::exit(1);
+            }
+        }
     };
 
     Args {
@@ -225,6 +266,7 @@ pub fn parse_cmd_line() -> Args {
         phen_fname,
         dists_fname,
         iterations,
+        log_every,
         delta,
         gt_weights,
         rel_gt_weight,
@@ -235,5 +277,6 @@ pub fn parse_cmd_line() -> Args {
         p1g1_filter,
         threads,
         out_fname,
+        log_fname,
     }
 }
