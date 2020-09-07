@@ -185,7 +185,7 @@ pub fn parse_cmd_line() -> Args {
         .arg(
             clap::Arg::with_name("log_every")
                 .help(
-                    "Write intermediate results every NUM iterations to the output file. \
+                    "Write intermediary results every NUM iterations to the output file. \
                 If '0', no logging will take place. Otherwise, a log file must be specified.",
                 )
                 .takes_value(true)
@@ -250,7 +250,7 @@ pub fn parse_cmd_line() -> Args {
                 None
             } else {
                 eprintln!(
-                    "Error: A log file is required (You specified that intermediate \
+                    "Error: A log file is required (You specified that intermediary \
                     results should be logged every {} iterations.)",
                     log_every
                 );
