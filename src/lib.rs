@@ -194,7 +194,8 @@ impl Calc {
             &p1g1s * &phen_weights.slice(ndarray::s![1, ..]) * gt_weights.slice(ndarray::s![1, ..])
                 - &p0g1s
                     * &phen_weights.slice(ndarray::s![0, ..])
-                    * gt_weights.slice(ndarray::s![1, ..]);
+                    * gt_weights.slice(ndarray::s![1, ..])
+                    * self.p0g1_extra_weight;
 
         // filter counts to remove SNPs with fewer p1g1 than `p1g1_filter`
         ndarray::par_azip!((count in &mut counts, &p1g1 in &p1g1s){
@@ -384,9 +385,10 @@ impl Calc {
             .expect("Error: No scores calculated yet.");
         // check if there are scores to write and write them
         if (scores.len() == indices.len()) & !scores.is_empty() {
-            writeln!(buffer, "SNP_idx,score").expect("Error writing output");
+            writeln!(buffer, "SNP_idx, score, p1g1, p0g1").expect("Error writing output");
             for (i, score) in indices.iter().zip(scores) {
-                writeln!(buffer, "{},{}", i, score)
+                let (p1g1, _, _, p0g1) = self.pg_counts(&self.snps_arr[*i]);
+                writeln!(buffer, "{}, {}, {}, {}", i, score, p1g1, p0g1)
                     .unwrap_or_else(|_| panic!("Error writing score with index {}", i));
             }
         }
