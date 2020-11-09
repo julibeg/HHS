@@ -90,14 +90,15 @@ impl Calc {
 
     /// Get the average pairwise distances for every SNP in `snps_arr`. Then normalize by mean.
     pub fn get_p1g1_relative_avg_dists(&mut self) {
-        let avg_dists: Vec<f32> = self.snps_arr[..]
+        let avg_dists: Vec<f32> = self
+            .snps_arr
             .par_iter()
             .map(|snps| self.get_p1g1_avg_dist(&snps))
             .collect();
 
-        let overall_mean = self.dists.mean() as f32;
+        // let overall_mean = self.dists.mean() as f32;
         // original way of normalizing
-        // let overall_mean = avg_dists.iter().sum::<f32>() / avg_dists.len() as f32;
+        let overall_mean = avg_dists.iter().sum::<f32>() / avg_dists.len() as f32;
 
         self.p1g1_avg_dists = Some(avg_dists.iter().map(|x| x / overall_mean).collect());
     }
@@ -383,12 +384,17 @@ impl Calc {
             .active
             .as_ref()
             .expect("Error: No scores calculated yet.");
+        let dists = self
+            .p1g1_avg_dists
+            .as_ref()
+            .expect("Error: No scores calculated yet.");
         // check if there are scores to write and write them
         if (scores.len() == indices.len()) & !scores.is_empty() {
-            writeln!(buffer, "SNP_idx, score, p1g1, p0g1").expect("Error writing output");
+            writeln!(buffer, "SNP_idx, score, p1g1, p0g1, dist").expect("Error writing output");
             for (i, score) in indices.iter().zip(scores) {
                 let (p1g1, _, _, p0g1) = self.pg_counts(&self.snps_arr[*i]);
-                writeln!(buffer, "{}, {}, {}, {}", i, score, p1g1, p0g1)
+                let dist = dists[*i];
+                writeln!(buffer, "{}, {:.2}, {}, {}, {:.3}", i, score, p1g1, p0g1, dist)
                     .unwrap_or_else(|_| panic!("Error writing score with index {}", i));
             }
         }

@@ -2,8 +2,8 @@ use bitvec::prelude as bv;
 use itertools::izip;
 use std::fmt;
 
-/// Set trailing bits of a `BitVec` (i.e. bits in the last element not belonging to the actual
-/// `BitVec`) to zero. Should be endian-agnostic.
+/// Set trailing bits of a `BitVec` (i.e. bits in the last storage element not belonging to the
+/// actual `BitVec`) to zero. Should be endian-agnostic.
 fn zero_trailing_bits<O, T>(bitvec: &mut bv::BitVec<O, T>)
 where
     O: bitvec::order::BitOrder,
