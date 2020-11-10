@@ -1,6 +1,4 @@
 use hhs::*;
-use std::fs;
-use std::io;
 
 fn main() {
     let args = cli::parse_cmd_line();
@@ -35,7 +33,13 @@ fn main() {
     match args.out_fname {
         Some(fname) => {
             println!("Writing result to {}\n", fname);
-            let mut file = fs::File::create(&fname).unwrap_or_else(|err| {
+            // first, write the command that was used to invoke the program
+            std::fs::write(&fname, args.args_string + "\n").unwrap_or_else(|err| {
+                eprintln!("Error creating output file: {}", err);
+                std::process::exit(1);
+            });
+            // then, write scores, distances etc. of the final SNPs in CSV format
+            let mut file = std::fs::OpenOptions::new().append(true).open(&fname).unwrap_or_else(|err| {
                 eprintln!("Error opening output file: {}", err);
                 std::process::exit(1);
             });
@@ -44,7 +48,10 @@ fn main() {
 
         None => {
             println!("Writing result to STDOUT:\n");
-            calc.write_scores_csv(&mut io::stdout());
+            // first, write the command that was used to invoke the program
+            println!("{}", args.args_string);
+            // then, write scores, distances etc. of the final SNPs in CSV format
+            calc.write_scores_csv(&mut std::io::stdout());
         }
     };
 

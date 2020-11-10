@@ -1,5 +1,5 @@
-use crate::bitarr::BitArrNa;
-use crate::dist_mat::DistMat;
+use bitarr::BitArrNa;
+use dist_mat::DistMat;
 use bitvec::prelude as bv;
 use bitvec::slice::AsBits;
 use float_cmp::approx_eq;
@@ -42,6 +42,7 @@ pub struct Args {
     pub threads: usize,
     pub out_fname: Option<String>,
     pub log_fname: Option<String>,
+    pub args_string: String,
 }
 
 #[derive(fmt::Debug)]

@@ -258,6 +258,8 @@ pub fn parse_cmd_line() -> Args {
             }
         }
     };
+    // get command line args as string
+    let args_string: String = std::env::args().collect::<Vec<String>>().join(" ");
 
     Args {
         snps_fname,
@@ -278,5 +280,6 @@ pub fn parse_cmd_line() -> Args {
         threads,
         out_fname,
         log_fname,
+        args_string,
     }
 }
