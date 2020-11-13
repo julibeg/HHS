@@ -1,4 +1,4 @@
-use crate::{Args, GtWeights};
+use crate::{Args, GtWeights, StrainsWith};
 
 const ALPHANUM_EXCEPT_01: &[&str] = &[
     "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S",
@@ -100,9 +100,7 @@ pub fn parse_cmd_line() -> Args {
         )
         .arg(
             clap::Arg::with_name("output")
-                .help(
-                    "output file; if missing, result is printed to STDOUT.",
-                )
+                .help("output file; if missing, result is printed to STDOUT.")
                 .takes_value(true)
                 .short("o")
                 .long("output")
@@ -183,6 +181,12 @@ pub fn parse_cmd_line() -> Args {
                 .display_order(15),
         )
         .arg(
+            clap::Arg::with_name("g1_avg_dist")
+                .help("get avg. pairwise distance among all g1 strains instead of all p1g1 strains")
+                .long("g1_avg_dist")
+                .display_order(16),
+        )
+        .arg(
             clap::Arg::with_name("log_every")
                 .help(
                     "Write intermediary results every NUM iterations to the output file. \
@@ -192,17 +196,15 @@ pub fn parse_cmd_line() -> Args {
                 .long("log_every")
                 .value_name("NUM")
                 .default_value("0")
-                .display_order(16),
+                .display_order(17),
         )
         .arg(
             clap::Arg::with_name("logfile")
-                .help(
-                    "log file; required if `log_every` is other than '0'",
-                )
+                .help("log file; required if `log_every` is other than '0'")
                 .takes_value(true)
                 .long("logfile")
                 .value_name("FILE")
-                .display_order(17),
+                .display_order(18),
         )
         .get_matches();
 
@@ -238,6 +240,11 @@ pub fn parse_cmd_line() -> Args {
     let p1g1_filter =
         clap::value_t!(matches.value_of("p1g1_filter"), u32).unwrap_or_else(|e| e.exit());
     let threads = clap::value_t!(matches.value_of("threads"), usize).unwrap_or_else(|e| e.exit());
+    let avg_dist_strains = if matches.is_present("g1_avg_dist") {
+        StrainsWith::G1
+    } else {
+        StrainsWith::P1G1
+    };
     let out_fname = match matches.value_of("output") {
         Some(fname) => Some(fname.to_string()),
         None => None,
@@ -277,6 +284,7 @@ pub fn parse_cmd_line() -> Args {
         p0g1_extra_weight,
         dist_weight,
         p1g1_filter,
+        avg_dist_strains,
         threads,
         out_fname,
         log_fname,

@@ -1,7 +1,7 @@
 use bitarr::BitArrNa;
-use dist_mat::DistMat;
 use bitvec::prelude as bv;
 use bitvec::slice::AsBits;
+use dist_mat::DistMat;
 use float_cmp::approx_eq;
 use itertools::izip;
 use ndarray::{Array1, Array2};
@@ -22,6 +22,12 @@ pub enum GtWeights {
     Single(Option<Array2<f32>>),
 }
 
+#[derive(fmt::Debug, Clone)]
+pub enum StrainsWith {
+    G1,
+    P1G1,
+}
+
 #[derive(fmt::Debug)]
 pub struct Args {
     pub snps_fname: String,
@@ -39,6 +45,7 @@ pub struct Args {
     pub p0g1_extra_weight: f32,
     pub dist_weight: f32,
     pub p1g1_filter: u32,
+    pub avg_dist_strains: StrainsWith,
     pub threads: usize,
     pub out_fname: Option<String>,
     pub log_fname: Option<String>,
@@ -57,7 +64,7 @@ pub struct Calc {
     pub snps_arr: Vec<BitArrNa>,
     pub phen: bv::BitVec,
     pub dists: DistMat<f32>,
-    pub p1g1_avg_dists: Option<Array1<f32>>,
+    pub avg_dists: Option<Array1<f32>>,
     pub scores: Option<Array1<f32>>,
     pub active: Option<Vec<usize>>,
 }
@@ -83,13 +90,14 @@ impl Calc {
             },
             phen: read_phen(&args.phen_fname),
             dists,
-            p1g1_avg_dists: None,
+            avg_dists: None,
             scores: None,
             active: None,
         }
     }
 
-    /// Get the average pairwise distances for every SNP in `snps_arr`. Then normalize by mean.
+    /// Get the average pairwise p1g1 distance for every SNP in `snps_arr`.
+    /// Then, normalize by mean.
     pub fn get_p1g1_relative_avg_dists(&mut self) {
         let avg_dists: Vec<f32> = self
             .snps_arr
@@ -98,14 +106,14 @@ impl Calc {
             .collect();
 
         // let overall_mean = self.dists.mean() as f32;
-        // original way of normalizing
+        // the original way of normalizing:
         let overall_mean = avg_dists.iter().sum::<f32>() / avg_dists.len() as f32;
 
-        self.p1g1_avg_dists = Some(avg_dists.iter().map(|x| x / overall_mean).collect());
+        self.avg_dists = Some(avg_dists.iter().map(|x| x / overall_mean).collect());
     }
 
-    /// Get average pairwise distance among all p1g1 strains (i.e. with the respective SNP and
-    /// phenotype).
+    /// Get average pairwise distance among all p1g1 strains (i.e. with the respective
+    /// SNP and phenotype).
     fn get_p1g1_avg_dist(&self, snps: &BitArrNa) -> f32 {
         let width = get_bitvec_width(&snps.bits);
         let mut indices: Vec<usize> = Vec::new();
@@ -115,6 +123,38 @@ impl Calc {
                 for (j, bit) in p1g1.bits::<bv::Local>().iter().enumerate() {
                     if *bit {
                         indices.push(i * width as usize + j);
+                    }
+                }
+            }
+        }
+        self.dists.avg_pairwise_dist(&indices) as f32
+    }
+
+    /// Get the average pairwise distance for every SNP in `snps_arr`.
+    /// Then, normalize by mean.
+    pub fn get_g1_relative_avg_dists(&mut self) {
+        let avg_dists: Vec<f32> = self
+            .snps_arr
+            .par_iter()
+            .map(|snps| self.get_g1_avg_dist(&snps))
+            .collect();
+
+        // let overall_mean = self.dists.mean() as f32;
+        // the original way of normalizing:
+        let overall_mean = avg_dists.iter().sum::<f32>() / avg_dists.len() as f32;
+
+        self.avg_dists = Some(avg_dists.iter().map(|x| x / overall_mean).collect());
+    }
+
+    /// Get average pairwise distance among all g1 strains (i.e. with the respective SNP).
+    fn get_g1_avg_dist(&self, snps: &BitArrNa) -> f32 {
+        let width = get_bitvec_width(&snps.bits) as usize;
+        let mut indices: Vec<usize> = Vec::new();
+        for (i, g1) in snps.bits.as_slice().iter().enumerate() {
+            if *g1 != 0 {
+                for (j, bit) in g1.bits::<bv::Local>().iter().enumerate() {
+                    if *bit {
+                        indices.push(i * width + j);
                     }
                 }
             }
@@ -187,9 +227,9 @@ impl Calc {
             ),
         };
         let avg_pw_dists = self
-            .p1g1_avg_dists
+            .avg_dists
             .as_ref()
-            .expect("Error: Cannot calculate scores with unset p1g1_avg_dists.");
+            .expect("Error: Cannot calculate scores with unset avg_dists.");
 
         let (p1g1s, _, _, p0g1s) = self.get_all_pg_counts();
         let mut counts =
@@ -386,7 +426,7 @@ impl Calc {
             .as_ref()
             .expect("Error: No scores calculated yet.");
         let dists = self
-            .p1g1_avg_dists
+            .avg_dists
             .as_ref()
             .expect("Error: No scores calculated yet.");
         // check if there are scores to write and write them
@@ -395,8 +435,12 @@ impl Calc {
             for (i, score) in indices.iter().zip(scores) {
                 let (p1g1, _, _, p0g1) = self.pg_counts(&self.snps_arr[*i]);
                 let dist = dists[*i];
-                writeln!(buffer, "{}, {:.2}, {}, {}, {:.3}", i, score, p1g1, p0g1, dist)
-                    .unwrap_or_else(|_| panic!("Error writing score with index {}", i));
+                writeln!(
+                    buffer,
+                    "{}, {:.2}, {}, {}, {:.3}",
+                    i, score, p1g1, p0g1, dist
+                )
+                .unwrap_or_else(|_| panic!("Error writing score with index {}", i));
             }
         }
     }

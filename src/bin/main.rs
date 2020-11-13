@@ -17,7 +17,10 @@ fn main() {
     // prepare weights, distances and scores
     println!("Preparing weights, calculating average pairwise distances and filtering initial scores...\n");
     calc.prepare_weights();
-    calc.get_p1g1_relative_avg_dists();
+    match args.avg_dist_strains {
+        StrainsWith::P1G1 => calc.get_p1g1_relative_avg_dists(),
+        StrainsWith::G1 => calc.get_g1_relative_avg_dists(),
+    }
     calc.get_scores();
 
     // run HHS and convert result to string
@@ -39,10 +42,13 @@ fn main() {
                 std::process::exit(1);
             });
             // then, write scores, distances etc. of the final SNPs in CSV format
-            let mut file = std::fs::OpenOptions::new().append(true).open(&fname).unwrap_or_else(|err| {
-                eprintln!("Error opening output file: {}", err);
-                std::process::exit(1);
-            });
+            let mut file = std::fs::OpenOptions::new()
+                .append(true)
+                .open(&fname)
+                .unwrap_or_else(|err| {
+                    eprintln!("Error opening output file: {}", err);
+                    std::process::exit(1);
+                });
             calc.write_scores_csv(&mut file);
         }
 
