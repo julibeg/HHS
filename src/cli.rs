@@ -189,7 +189,7 @@ pub fn parse_cmd_line() -> Args {
         .arg(
             clap::Arg::with_name("log_every")
                 .help(
-                    "Write intermediary results every NUM iterations to the output file. \
+                    "write intermediary results every NUM iterations to the output file. \
                 If '0', no logging will take place. Otherwise, a log file must be specified.",
                 )
                 .takes_value(true)
@@ -205,6 +205,14 @@ pub fn parse_cmd_line() -> Args {
                 .long("logfile")
                 .value_name("FILE")
                 .display_order(18),
+        )
+        .arg(
+            clap::Arg::with_name("avg_dists_file")
+                .help("write the avg. pairwise distances to this file before iterative elimination")
+                .takes_value(true)
+                .long("avg_dists_file")
+                .value_name("FILE")
+                .display_order(19),
         )
         .get_matches();
 
@@ -265,6 +273,10 @@ pub fn parse_cmd_line() -> Args {
             }
         }
     };
+    let avg_dists_fname = match matches.value_of("avg_dists_file") {
+        Some(fname) => Some(fname.to_string()),
+        None => None,
+    };
     // get command line args as string
     let args_string: String = std::env::args().collect::<Vec<String>>().join(" ");
 
@@ -288,6 +300,7 @@ pub fn parse_cmd_line() -> Args {
         threads,
         out_fname,
         log_fname,
+        avg_dists_fname,
         args_string,
     }
 }

@@ -21,6 +21,12 @@ fn main() {
         StrainsWith::P1G1 => calc.get_p1g1_relative_avg_dists(),
         StrainsWith::G1 => calc.get_g1_relative_avg_dists(),
     }
+    // write the avg. pairwise distances for the SNPs if a
+    // filename has been provided
+    if let Some(fname) = args.avg_dists_fname {
+        println!("Writing average pairwise distances to '{}'\n", fname);
+        calc.write_avg_dists(&fname);
+    }
     calc.get_scores();
 
     // run HHS and convert result to string
@@ -35,10 +41,10 @@ fn main() {
     // print result to stdout or file
     match args.out_fname {
         Some(fname) => {
-            println!("Writing result to {}\n", fname);
+            println!("Writing result to '{}'\n", fname);
             // first, write the command that was used to invoke the program
             std::fs::write(&fname, args.args_string + "\n").unwrap_or_else(|err| {
-                eprintln!("Error creating output file: {}", err);
+                eprintln!("Error creating output file: '{}'", err);
                 std::process::exit(1);
             });
             // then, write scores, distances etc. of the final SNPs in CSV format
@@ -46,7 +52,7 @@ fn main() {
                 .append(true)
                 .open(&fname)
                 .unwrap_or_else(|err| {
-                    eprintln!("Error opening output file: {}", err);
+                    eprintln!("Error opening output file: '{}'", err);
                     std::process::exit(1);
                 });
             calc.write_scores_csv(&mut file);

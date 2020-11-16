@@ -49,6 +49,7 @@ pub struct Args {
     pub threads: usize,
     pub out_fname: Option<String>,
     pub log_fname: Option<String>,
+    pub avg_dists_fname: Option<String>,
     pub args_string: String,
 }
 
@@ -72,7 +73,10 @@ pub struct Calc {
 impl Calc {
     pub fn from_args(args: &Args) -> Calc {
         let dists = DistMat::from_csv_symmetric(&args.dists_fname).unwrap_or_else(|err| {
-            eprintln!("Error processing input file {}: {}", args.dists_fname, err);
+            eprintln!(
+                "Error processing distance file '{}': {}",
+                args.dists_fname, err
+            );
             std::process::exit(1);
         });
         Calc {
@@ -160,6 +164,26 @@ impl Calc {
             }
         }
         self.dists.avg_pairwise_dist(&indices) as f32
+    }
+
+    pub fn write_avg_dists(&self, fname: &str) {
+        let dists = self
+            .avg_dists
+            .as_ref()
+            .expect("Error: No average distances calculated yet.");
+        // check if there are scores to write and write them
+        let mut file = fs::File::create(fname).unwrap_or_else(|err| {
+            eprintln!(
+                "Error opening file '{}' to write avg. pairwise distances to: {}",
+                fname, err
+            );
+            std::process::exit(1);
+        });
+        for dist in dists.iter() {
+            writeln!(file, "{}", dist).unwrap_or_else(|err| {
+                panic!("Error writing avg. pairwise distance '{}': {}", dist, err)
+            });
+        }
     }
 
     pub fn prepare_weights(&mut self) {
@@ -306,7 +330,7 @@ impl Calc {
         if let Some(fname) = logfile_fname {
             if log_every > 0 {
                 logfile = Some(fs::File::create(&fname).unwrap_or_else(|err| {
-                    eprintln!("Error opening log file: {}", err);
+                    eprintln!("Error opening log file '{}': {}", fname, err);
                     std::process::exit(1);
                 }));
             }
@@ -475,7 +499,7 @@ pub fn read_snps(infname: &str, na_char: char) -> Vec<BitArrNa> {
     let mut snps_arr: Vec<BitArrNa> = Vec::new();
 
     let infile = fs::File::open(&infname).unwrap_or_else(|err| {
-        eprintln!("Error opening SNPs input file {}: {}", infname, err);
+        eprintln!("Error opening SNPs input file '{}': {}", infname, err);
         std::process::exit(1);
     });
     let lines = io::BufReader::new(infile).lines();
@@ -484,7 +508,7 @@ pub fn read_snps(infname: &str, na_char: char) -> Vec<BitArrNa> {
         if let Ok(line) = line {
             let snp = BitArrNa::from_string(&line, na_char).unwrap_or_else(|err| {
                 eprintln!(
-                    "Error generating SNP-bitarr at input file {} line {}: {}",
+                    "Error generating SNP-bitarr at input file '{}' line {}: {}",
                     infname,
                     i + 1,
                     err
@@ -493,7 +517,7 @@ pub fn read_snps(infname: &str, na_char: char) -> Vec<BitArrNa> {
             });
             snps_arr.push(snp);
         } else {
-            eprintln!("Error reading input file at line {}", i + 1);
+            eprintln!("Error reading input file '{}' at line {}", infname, i + 1);
             std::process::exit(1);
         }
     }
@@ -514,7 +538,7 @@ pub fn read_snps(infname: &str, na_char: char) -> Vec<BitArrNa> {
 pub fn read_snps_transposed(infname: &str, na_char: char) -> Vec<BitArrNa> {
     // read file first to determine dimensions
     let infile = fs::File::open(&infname).unwrap_or_else(|err| {
-        eprintln!("Error opening SNPs input file {}: {}", infname, err);
+        eprintln!("Error opening SNPs input file '{}': {}", infname, err);
         std::process::exit(1);
     });
     let mut lines = io::BufReader::new(infile).lines();
@@ -548,7 +572,8 @@ pub fn read_snps_transposed(infname: &str, na_char: char) -> Vec<BitArrNa> {
                     snps_arr[j].not_nas.set(i, false);
                 } else {
                     eprintln!(
-                        "Char at position {} was \'{}\'; expected \'0\', \'1\' or \'{}\'.",
+                        "Error parsing SNPs file '{}': Char at position {} was '{}'; expected '0', '1' or '{}'.",
+                        infname,
                         j + 1,
                         c,
                         na_char
@@ -557,7 +582,7 @@ pub fn read_snps_transposed(infname: &str, na_char: char) -> Vec<BitArrNa> {
                 }
             }
         } else {
-            eprintln!("Error reading input file at line {}", i + 1);
+            eprintln!("Error reading input file '{}' at line {}", infname, i + 1);
             std::process::exit(1);
         }
     }
@@ -566,7 +591,7 @@ pub fn read_snps_transposed(infname: &str, na_char: char) -> Vec<BitArrNa> {
 
 pub fn read_phen(infname: &str) -> bv::BitVec {
     let phen_str = fs::read_to_string(infname).unwrap_or_else(|err| {
-        eprintln!("Error opening input file {}: {}", infname, err);
+        eprintln!("Error opening input file '{}': {}", infname, err);
         std::process::exit(1);
     });
     let phen_str = phen_str.trim();
@@ -579,8 +604,8 @@ pub fn read_phen(infname: &str) -> bv::BitVec {
             phen.set(i, true);
         } else {
             eprintln!(
-                "Error parsing phenotype file {}: Char at position {} was \'{}\'; \
-                     expected \'0\' or \'1\'",
+                "Error parsing phenotype file '{}': Char at position {} was '{}'; \
+                     expected '0' or '1'",
                 infname,
                 i + 1,
                 c
