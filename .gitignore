@@ -6,5 +6,6 @@
 *.out
 *.csv
 *.pkl
+*.log
 /data_for_rust_impl
 /example_files
