@@ -109,8 +109,9 @@ impl Calc {
             .map(|snps| self.get_p1g1_avg_dist(&snps))
             .collect();
 
+        // normalize by all pairwise inter-sample distances:
         // let overall_mean = self.dists.mean() as f32;
-        // the original way of normalizing:
+        // or instead, the original way of normalizing:
         let overall_mean = avg_dists.iter().sum::<f32>() / avg_dists.len() as f32;
 
         self.avg_dists = Some(avg_dists.iter().map(|x| x / overall_mean).collect());
@@ -358,6 +359,11 @@ impl Calc {
         active.shrink_to_fit();
 
         for n in 0..n_iter {
+            // write progress to STDOUT
+            if n % (n_iter / 10) == 0 {
+                println!("{} iterations done -- SNPs remaining: {}", n, scores.len());
+            }
+
             // potential logging
             if let Some(file) = logfile.as_mut() {
                 if n % log_every == 0 {
@@ -400,11 +406,6 @@ impl Calc {
             scores.copy_from_slice(&new_scores);
             let norm_factor = sum / scores.iter().sum::<f32>();
             scores.iter_mut().for_each(|x| *x *= norm_factor);
-
-            // write progress to STDOUT
-            if n % (n_iter / 10) == 0 {
-                println!("{} iterations done -- SNPs remaining: {}", n, scores.len());
-            }
         }
 
         println!(

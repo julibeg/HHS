@@ -14,7 +14,7 @@ fn main() {
     println!("Reading ipnut data...\n");
     let mut calc = Calc::from_args(&args);
 
-    // prepare weights, distances and scores
+    // prepare weights and distances
     println!("Preparing weights, calculating average pairwise distances and filtering initial scores...\n");
     calc.prepare_weights();
     match args.avg_dist_strains {
@@ -27,6 +27,7 @@ fn main() {
         println!("Writing average pairwise distances to '{}'\n", fname);
         calc.write_avg_dists(&fname);
     }
+    // get initial scores
     calc.get_scores();
 
     // run HHS and convert result to string
