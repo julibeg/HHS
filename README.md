@@ -44,6 +44,6 @@ again with `N` denoting the desired number of threads used.
 `-T` is required because `inh.gt` holds a SNP per column instead of per row, which is the default.
 The program should generate `16329, 20794, 20795, 20805, 20815, 20819, 20836` which are the indices of the final
 SNPs remaining. The SNP positions of the dataset can be found in `inh.gt.pos`. Looking up the respective
-indices yields `1674263, 2155168, 2155169, 2155259, 2155541, 2155607, 2155786`. These positions are all 
+indices yields `1674263, 2155168, 2155169, 2155259, 2155541, 2155607, 2155786`. These genomic positions are all 
 within the *inhA* and *katG* genes, which makes sense as isoniazid attacks the gene product of *inhA*
 and is activated by the product of *katG*.
