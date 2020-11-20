@@ -28,8 +28,7 @@ in `/target/release`
 
 
 ## Usage example
-Input files to test the installation are in `example_files.tar.gz`. They are from a *M. tuberculosis* dataset with resistance 
-to isoniazid.
+Input files to test the installation are in `example_files.tar.gz`. They are from a highly multidrug-resistant *M. tuberculosis* dataset with phenotype data for resistance to isoniazid.
 The pairwise distances are already provided in `inh.dist`, but could be generated with 
 ```
 ./binary_hamming_dist -i inh.gt -n 2 -o inh.dists -t N
