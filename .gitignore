@@ -3,7 +3,7 @@
 
 #input/output files
 *.txt
-*.out
+*.out*
 *.csv
 *.pkl
 *.log
