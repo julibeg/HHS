@@ -17,10 +17,7 @@ fn main() {
     // prepare weights and distances
     println!("Preparing weights, calculating average pairwise distances and filtering initial scores...\n");
     calc.prepare_weights();
-    match args.avg_dist_strains {
-        StrainsWith::P1G1 => calc.get_p1g1_relative_avg_dists(),
-        StrainsWith::G1 => calc.get_g1_relative_avg_dists(),
-    }
+    calc.get_relative_avg_dists();
     // write the avg. pairwise distances for the SNPs if a
     // filename has been provided
     if let Some(fname) = args.avg_dists_fname {

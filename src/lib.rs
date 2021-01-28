@@ -60,6 +60,7 @@ pub struct Calc {
     pub phen_weights: Option<Array2<f32>>,
     pub rel_phen_weight: f32,
     pub p0g1_extra_weight: f32,
+    pub avg_dist_strains: StrainsWith,
     pub dist_weight: f32,
     pub p1g1_filter: u32,
     pub snps_arr: Vec<BitArrNa>,
@@ -85,6 +86,7 @@ impl Calc {
             phen_weights: args.phen_weights.clone(),
             rel_phen_weight: args.rel_phen_weight,
             p0g1_extra_weight: args.p0g1_extra_weight,
+            avg_dist_strains: args.avg_dist_strains.clone(),
             dist_weight: args.dist_weight,
             p1g1_filter: args.p1g1_filter,
             snps_arr: if args.snps_file_transposed {
@@ -102,11 +104,11 @@ impl Calc {
 
     /// Get the average pairwise p1g1 distance for every SNP in `snps_arr`.
     /// Then, normalize by mean.
-    pub fn get_p1g1_relative_avg_dists(&mut self) {
+    pub fn get_relative_avg_dists(&mut self) {
         let avg_dists: Vec<f32> = self
             .snps_arr
             .par_iter()
-            .map(|snps| self.get_p1g1_avg_dist(&snps))
+            .map(|snps| self.get_avg_dist(&snps))
             .collect();
 
         // normalize by all pairwise inter-sample distances:
@@ -117,49 +119,35 @@ impl Calc {
         self.avg_dists = Some(avg_dists.iter().map(|x| x / overall_mean).collect());
     }
 
-    /// Get average pairwise distance among all p1g1 strains (i.e. with the respective
-    /// SNP and phenotype).
-    fn get_p1g1_avg_dist(&self, snps: &BitArrNa) -> f32 {
-        let width = get_bitvec_width(&snps.bits);
+    /// Get average pairwise distance among the relevant strains (i.e. with the respective
+    /// genotype and phenotype or only the genotype, depending on `self.avg_dist_strains`).
+    fn get_avg_dist(&self, snps: &BitArrNa) -> f32 {
+        let width = get_bitvec_width(&snps.bits) as usize;
         let mut indices: Vec<usize> = Vec::new();
-        for (i, (g1, p1)) in izip!(snps.bits.as_slice(), self.phen.as_slice()).enumerate() {
-            let p1g1 = p1 & g1;
-            if p1g1 != 0 {
-                for (j, bit) in p1g1.bits::<bv::Local>().iter().enumerate() {
-                    if *bit {
-                        indices.push(i * width as usize + j);
+        match self.avg_dist_strains {
+            // as closures can currently not be forced to be inlined, best performance
+            // in some situations can only be achieved by either duplicating loops
+            // (as below) or defining extra helper functions and inlining those.
+            StrainsWith::P1G1 => {
+                for (i, (g1, p1)) in izip!(snps.bits.as_slice(), self.phen.as_slice()).enumerate() {
+                    let p1g1 = p1 & g1;
+                    if p1g1 != 0 {
+                        for (j, bit) in p1g1.bits::<bv::Local>().iter().enumerate() {
+                            if *bit {
+                                indices.push(i * width + j);
+                            }
+                        }
                     }
                 }
             }
-        }
-        self.dists.avg_pairwise_dist(&indices) as f32
-    }
-
-    /// Get the average pairwise distance for every SNP in `snps_arr`.
-    /// Then, normalize by mean.
-    pub fn get_g1_relative_avg_dists(&mut self) {
-        let avg_dists: Vec<f32> = self
-            .snps_arr
-            .par_iter()
-            .map(|snps| self.get_g1_avg_dist(&snps))
-            .collect();
-
-        // let overall_mean = self.dists.mean() as f32;
-        // the original way of normalizing:
-        let overall_mean = avg_dists.iter().sum::<f32>() / avg_dists.len() as f32;
-
-        self.avg_dists = Some(avg_dists.iter().map(|x| x / overall_mean).collect());
-    }
-
-    /// Get average pairwise distance among all g1 strains (i.e. with the respective SNP).
-    fn get_g1_avg_dist(&self, snps: &BitArrNa) -> f32 {
-        let width = get_bitvec_width(&snps.bits) as usize;
-        let mut indices: Vec<usize> = Vec::new();
-        for (i, g1) in snps.bits.as_slice().iter().enumerate() {
-            if *g1 != 0 {
-                for (j, bit) in g1.bits::<bv::Local>().iter().enumerate() {
-                    if *bit {
-                        indices.push(i * width + j);
+            StrainsWith::G1 => {
+                for (i, g1) in snps.bits.as_slice().iter().enumerate() {
+                    if *g1 != 0 {
+                        for (j, bit) in g1.bits::<bv::Local>().iter().enumerate() {
+                            if *bit {
+                                indices.push(i * width + j);
+                            }
+                        }
                     }
                 }
             }

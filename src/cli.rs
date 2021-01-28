@@ -181,9 +181,9 @@ pub fn parse_cmd_line() -> Args {
                 .display_order(15),
         )
         .arg(
-            clap::Arg::with_name("g1_avg_dist")
-                .help("get avg. pairwise distance among all g1 strains instead of all p1g1 strains")
-                .long("g1_avg_dist")
+            clap::Arg::with_name("p1g1_avg_dist")
+                .help("get avg. pairwise distance among all p1g1 strains instead of all g1 strains")
+                .long("p1g1_avg_dist")
                 .display_order(16),
         )
         .arg(
@@ -248,10 +248,10 @@ pub fn parse_cmd_line() -> Args {
     let p1g1_filter =
         clap::value_t!(matches.value_of("p1g1_filter"), u32).unwrap_or_else(|e| e.exit());
     let threads = clap::value_t!(matches.value_of("threads"), usize).unwrap_or_else(|e| e.exit());
-    let avg_dist_strains = if matches.is_present("g1_avg_dist") {
-        StrainsWith::G1
-    } else {
+    let avg_dist_strains = if matches.is_present("p1g1_avg_dist") {
         StrainsWith::P1G1
+    } else {
+        StrainsWith::G1
     };
     let out_fname = match matches.value_of("output") {
         Some(fname) => Some(fname.to_string()),
