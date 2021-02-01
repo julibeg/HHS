@@ -182,7 +182,7 @@ pub fn parse_cmd_line() -> Args {
         )
         .arg(
             clap::Arg::with_name("p1g1_avg_dist")
-                .help("get avg. pairwise distance among all p1g1 strains instead of all g1 strains")
+                .help("use avg. pairwise distances among all p1g1 strains instead of all g1 strains")
                 .long("p1g1_avg_dist")
                 .display_order(16),
         )
