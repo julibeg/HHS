@@ -1,6 +1,6 @@
 # HHS
 
-Hungry-Hungry SNPos (HHS) - a "cannibalistic" elimination algorithm for finding resistance-associated genetic variants 
+Hungry-Hungry SNPos (HHS) -- a "cannibalistic" elimination algorithm for finding resistance-associated genetic variants 
 from a binary genotype matrix. This approach is more robust towards co-occurring resistance than most 
 correlation-based methods (e.g. GWAS or machine learning techniques). 
 
