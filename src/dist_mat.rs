@@ -1,12 +1,11 @@
-use std::cmp;
-use std::fs;
-use std::io;
-use std::ops;
+use flate2::read::GzDecoder;
+use std::{cmp, error, fs, io, ops, str};
 
 /// Triangular distance matrix
 #[derive(Debug)]
 pub struct DistMat<T> {
     pub mat: Vec<Vec<T>>,
+    pub labels: Vec<String>,
 }
 
 impl<T> DistMat<T> {
@@ -16,89 +15,83 @@ impl<T> DistMat<T> {
         for i in 0..n {
             mat.push(Vec::with_capacity(n - i));
         }
-        DistMat { mat }
-    }
-}
-
-impl<T> DistMat<T>
-where
-    T: num::Num + std::string::ToString + Copy,
-{
-    /// Write DistMat to buffer in square/symmetric form
-    pub fn write_csv_symmetric<Buffer: io::Write>(&self, buffer: &mut Buffer) {
-        let n = self.mat.len();
-        for i in 0..=n {
-            let mut line: Vec<T> = Vec::with_capacity(n);
-            for j in 0..=n {
-                let dist: T;
-                if i == j {
-                    dist = T::zero();
-                } else {
-                    dist = self[[i, j]];
-                }
-                line.push(dist);
-            }
-            let line: Vec<String> = line.into_iter().map(|i| i.to_string()).collect();
-            writeln!(buffer, "{}", &line.join(","))
-                .unwrap_or_else(|_| panic!("Error writing result at i: {}", i));
+        DistMat {
+            mat,
+            labels: Vec::with_capacity(n - 1),
         }
     }
 }
 
 impl<T> DistMat<T>
 where
-    T: num::Num,
+    T: num::Num + str::FromStr + std::fmt::Display,
+    <T as std::str::FromStr>::Err: std::error::Error + 'static,
 {
-    /// generate DistMat from .csv file
-    pub fn from_csv_symmetric(infname: &str) -> Result<DistMat<T>, io::Error> {
-        let infile = fs::File::open(infname).unwrap_or_else(|err| {
-            eprintln!("Error opening input file {}: {}", infname, err);
-            std::process::exit(1);
-        });
-        let infile = io::BufReader::new(infile);
-        DistMat::read_symmetric(infile, ",")
-    }
-
-    /// parse square/symmetric input into DistMat
-    pub fn read_symmetric<Buffer: io::BufRead>(
-        buffer: Buffer,
-        delim: &str,
-    ) -> Result<DistMat<T>, io::Error> {
-        let mut size: Option<usize> = None; // is set after reading first line
+    pub fn from_csv_symmetric(infname: &str) -> Result<DistMat<T>, Box<dyn error::Error>> {
+        // box file to deal with different types from `fs::File::open()` and `GzDecoder::new()`
+        let mut file: Box<dyn io::Read> = Box::new(fs::File::open(infname)?);
+        if infname.ends_with("gz") {
+            file = Box::new(GzDecoder::new(file))
+        }
+        let mut reader = csv::ReaderBuilder::new()
+            .has_headers(true)
+            .from_reader(file);
+        // parse header and skip first element, which holds the label of the index column
+        let labels: Vec<String> = reader
+            .headers()?
+            .iter()
+            .skip(1)
+            .map(|label| label.to_string())
+            .collect();
+        // the upper half of the symmetric matrix in the csv is stored as a
+        // vector of vectors with decreasing lengths --> initialise `mat`
         let mut mat: Vec<Vec<T>> = Vec::new();
-        for (i, line) in buffer.lines().enumerate() {
-            let line = line?;
-            let mut vec = Vec::new();
-            if let Some(size) = size {
-                // check if size has already been set
-                vec.reserve(size - i); // and allocate space if so
+        // iterate over rows in csv
+        for (i, record) in reader.records().enumerate() {
+            // transform current row to iterator right away. as he reader only allows
+            // rows of equal length anyway, we can unwrap when calling `.next()` later.
+            let record = record?;
+            let mut row = record.iter();
+            // get the first element --> the row label
+            let label = row.next().unwrap();
+            // check if the label matches up with the corresponding field
+            // in the header; throw error otherwise.
+            if label != &labels[i] {
+                eprintln!(
+                    "Error: \"{}\" is expected to hold a symmetric matrix, but the\
+                    header and row labels do not match up at position {} with \"{}\"\
+                    in the header and \"{}\" as row label.",
+                    infname, i, &label, &labels[i]
+                );
+                std::process::exit(1);
             }
-            for elem in line.split(delim).skip(i + 1) {
-                let elem = match T::from_str_radix(elem.trim(), 10) {
-                    Ok(elem) => elem,
-                    Err(_) => {
-                        // from_str_radix returns a fmt error
-                        return Err(io::Error::new(
-                            // --> a new io::Error needs to be created
-                            io::ErrorKind::InvalidInput,
-                            format!(
-                                "Error converting input \"{}\" into number at line {}",
-                                elem, i
-                            ),
-                        ));
-                    }
-                };
-                vec.push(elem);
+            // skip elements before the main diagonal
+            let mut row = row.skip(i);
+            // check that the diagonal entry is zero; again we can unwrap because we know the
+            // row must be long enough
+            let diag_entry: T = row.next().unwrap().parse()?;
+            if diag_entry != T::zero() {
+                eprintln!(
+                    "Error parsing \"{}\": The diagonal entry in the {}th row (with index \
+                    \"{}\") should be zero but is \"{}\"",
+                    infname,
+                    i + 1,
+                    label,
+                    diag_entry
+                );
+                std::process::exit(1);
             }
-            if i == 0 {
-                // we know the size after reading the first
-                size = Some(vec.len()) // line --> can be used to pre-allocate
-            }; // memory for the following lines
-
-            mat.push(vec);
+            // Take the entries to the right of the diagonal and push them onto `mat`
+            let dists = row
+                .map(|dist| dist.parse::<T>())
+                .collect::<Result<Vec<T>, _>>()?;
+            // There are no entries to the right of the diagonal in the final row and
+            // it is going to be empty --> don't append it to `mat`.
+            if dists.len() > 0 {
+                mat.push(dists);
+            }
         }
-        mat.truncate(mat.len() - 1); // the last vec was empty due to skip
-        Ok(DistMat { mat }) // remove it from the matrix
+        Ok(DistMat { mat, labels })
     }
 }
 
