@@ -28,7 +28,8 @@ where
     <T as std::str::FromStr>::Err: std::error::Error + 'static,
 {
     pub fn from_csv_symmetric(infname: &str) -> Result<DistMat<T>, Box<dyn error::Error>> {
-        // box file to deal with different types from `fs::File::open()` and `GzDecoder::new()`
+        // box file object to deal with different types from 
+        // `fs::File::open()` and `GzDecoder::new()`
         let mut file: Box<dyn io::Read> = Box::new(fs::File::open(infname)?);
         if infname.ends_with("gz") {
             file = Box::new(GzDecoder::new(file))

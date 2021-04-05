@@ -2,14 +2,12 @@ use bitarr::BitArrNa;
 use bitvec::prelude as bv;
 use bitvec::slice::AsBits;
 use dist_mat::DistMat;
+use flate2::read::GzDecoder;
 use float_cmp::approx_eq;
 use itertools::izip;
 use ndarray::{Array1, Array2};
 use rayon::prelude::*;
-use std::fmt;
-use std::fs;
-use std::io;
-use std::io::prelude::*;
+use std::{error, fmt, fs, io, io::prelude::*};
 
 mod bitarr;
 pub mod cli;
@@ -75,11 +73,26 @@ impl Calc {
     pub fn from_args(args: &Args) -> Calc {
         let dists = DistMat::from_csv_symmetric(&args.dists_fname).unwrap_or_else(|err| {
             eprintln!(
-                "Error processing distance file '{}': {}",
+                "Error processing distance file \"{}\": {}",
                 args.dists_fname, err
             );
             std::process::exit(1);
         });
+        let (phen, phen_sample_ids) = read_phen(&args.phen_fname).unwrap_or_else(|err| {
+            eprintln!(
+                "Error processing phenotype file \"{}\": {}",
+                args.phen_fname, err
+            );
+            std::process::exit(1);
+        });
+        if phen_sample_ids != dists.labels {
+            eprintln!(
+                "Error: Sample labels in the distance file \"{}\" and phenotype file \
+                \"{}\" are not equal.",
+                &args.dists_fname, &args.phen_fname
+            );
+            std::process::exit(1);
+        }
         Calc {
             gt_weights: args.gt_weights.clone(),
             rel_gt_weight: args.rel_gt_weight,
@@ -94,7 +107,7 @@ impl Calc {
             } else {
                 read_snps(&args.snps_fname, args.snps_na_char)
             },
-            phen: read_phen(&args.phen_fname),
+            phen,
             dists,
             avg_dists: None,
             scores: None,
@@ -578,31 +591,55 @@ pub fn read_snps_transposed(infname: &str, na_char: char) -> Vec<BitArrNa> {
     snps_arr
 }
 
-pub fn read_phen(infname: &str) -> bv::BitVec {
-    let phen_str = fs::read_to_string(infname).unwrap_or_else(|err| {
-        eprintln!("Error opening input file '{}': {}", infname, err);
-        std::process::exit(1);
-    });
-    let phen_str = phen_str.trim();
-    let mut phen = bv::bitvec![0; phen_str.len()];
-
-    for (i, c) in phen_str.chars().enumerate() {
-        if c == '0' {
-            continue;
-        } else if c == '1' {
-            phen.set(i, true);
-        } else {
+/// reads csv with phenotype data. agnostic to whether there is a header.
+fn read_phen(infname: &str) -> Result<(bv::BitVec, Vec<String>), Box<dyn error::Error>> {
+    // box file object to deal with different types from
+    // `fs::File::open()` and `GzDecoder::new()`
+    let mut file: Box<dyn io::Read> = Box::new(fs::File::open(infname)?);
+    if infname.ends_with("gz") {
+        file = Box::new(GzDecoder::new(file))
+    }
+    // assume that there is a header but check if the second field in the header
+    // is '0' or '1' in case there is none.
+    let mut reader = csv::ReaderBuilder::new()
+        .has_headers(true)
+        .from_reader(file);
+    // initiliase vector of strings for the labels and a string for the
+    // phenotypes, which is used to generate the bitvec later
+    let mut labels: Vec<String> = Vec::new();
+    let mut phen_str = String::new();
+    let header = reader.headers()?;
+    if &header[1] == "0" || &header[1] == "1" {
+        // there was no header --> add the data to the labels and string
+        labels.push(header[0].to_string());
+        phen_str.push_str(&header[1].to_string());
+    }
+    for rec in reader.records() {
+        let row = rec?;
+        labels.push(row[0].to_string());
+        let phen = &row[1];
+        if !(phen == "0" || phen == "1") {
+            // the phenotype file should only hold '0' or '1' in the second column
             eprintln!(
-                "Error parsing phenotype file '{}': Char at position {} was '{}'; \
-                     expected '0' or '1'",
-                infname,
-                i + 1,
-                c
+                "Error parsing phenotype file \"{}\": The phenotype \
+                for \"{}\" was \"{}\", but should be '0' or '1'.",
+                infname, &row[0], phen
             );
             std::process::exit(1);
         }
+        phen_str.push_str(phen);
     }
-    phen
+    // now generate bitvec and return
+    let mut phen_bv = bv::bitvec![0; phen_str.len()];
+    for (i, c) in phen_str.chars().enumerate() {
+        // we would have thrown an error if there was something other than '0' or
+        // '1' in `phen_str`. therefore, we only need to check for '1' and set
+        // the bits accordingly.
+        if c == '1' {
+            phen_bv.set(i, true);
+        }
+    }
+    Ok((phen_bv, labels))
 }
 
 /// Get number of bits in a `BitVec`'s storage unit.
