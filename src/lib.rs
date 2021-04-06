@@ -31,7 +31,7 @@ pub struct Args {
     pub snps_fname: String,
     pub phen_fname: String,
     pub dists_fname: String,
-    pub iterations: usize,
+    pub max_iter: usize,
     pub log_every: usize,
     pub delta: f32,
     pub gt_weights: GtWeights,
@@ -319,7 +319,7 @@ impl Calc {
     pub fn hhs_update_scores(
         &mut self,
         delta: f32,
-        n_iter: usize,
+        max_iter: usize,
         log_every: usize,
         logfile_fname: Option<&String>,
     ) {
@@ -350,25 +350,29 @@ impl Calc {
             }
         }
         let sum: f32 = scores.iter().sum();
-        // we will set negative scores to 0.0 later and subsequently drop scores that 
+        // we will set negative scores to 0.0 later and subsequently drop scores that
         // are <= 0.0. in order to not trip over float-comparisons, we will use this
         // threshold instead of zero:
-        let drop_below_zero_threshold = sum / scores.len() as f32 * 1e-6;
+        let zero_threshold = sum / scores.len() as f32 * 1e-6;
 
         let mut new_scores: Vec<f32> = vec![0.; scores.len()];
         scores.shrink_to_fit();
         active.shrink_to_fit();
 
-        for n in 0..n_iter {
+        let mut n_iter: usize = 0;
+        loop {
             // write progress to STDOUT
-            if n % (n_iter / 10) == 0 {
-                println!("{} iterations done -- SNPs remaining: {}", n, scores.len());
+            if n_iter % 10000 == 0 {
+                println!(
+                    "{} iterations done -- SNPs remaining: {}",
+                    n_iter,
+                    scores.len()
+                );
             }
-
             // potential logging
             if let Some(file) = logfile.as_mut() {
-                if n % log_every == 0 {
-                    write!(file, "{} iterations:", n).expect("Error writing output");
+                if n_iter % log_every == 0 {
+                    write!(file, "{} iterations:", n_iter).expect("Error writing output");
                     log_scores(file, &scores, &self.snps_var_ids, &active);
                 }
             }
@@ -396,25 +400,40 @@ impl Calc {
                     }
                     *new_score = tmp_score / p1g1;
                 });
-
             // remove the indices of SNPs whose score fell below 0 from `active`
             for i in (0..active.len()).rev() {
                 // to not get tripped by float-comparisons just use a small value instead of zero
-                if new_scores[i] <= drop_below_zero_threshold {
+                if new_scores[i] <= zero_threshold {
                     active.swap_remove(i);
                     new_scores.swap_remove(i);
                 }
             }
+            // rescale the new scores
+            let norm_factor = sum / new_scores.iter().sum::<f32>();
+            new_scores.iter_mut().for_each(|x| *x *= norm_factor);
 
-            // update and rescale scores before next iteration
+            // every 1,000th iterations compare the old and new scores and stop if they
+            // didn't change (i.e. convergence) or the maximum number of iterations (as
+            // specified by the user) was reached.
+            if n_iter % 1000 == 0 && scores.len() == new_scores.len() {
+                // get sum of absolute differences
+                let diffsum = scores
+                    .iter()
+                    .zip(&new_scores)
+                    .fold(0.0, |sum, (s1, s2)| sum + (s1 - s2).abs());
+                if diffsum < zero_threshold || n_iter >= max_iter {
+                    break;
+                }
+            }
+            // update new scores before next iteration
             scores.truncate(new_scores.len());
             scores.copy_from_slice(&new_scores);
-            let norm_factor = sum / scores.iter().sum::<f32>();
-            scores.iter_mut().for_each(|x| *x *= norm_factor);
+            n_iter += 1;
         }
 
         println!(
-            "\nAll {} iterations done: {} SNPs remain\n",
+            "\nConvergence after {}-{} iterations: {} SNPs remain\n",
+            n_iter - 1000,
             n_iter,
             scores.len()
         );

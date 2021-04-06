@@ -60,8 +60,8 @@ pub fn parse_cmd_line() -> Args {
                 .display_order(3),
         )
         .arg(
-            clap::Arg::with_name("iterations")
-                .help("number of iterations")
+            clap::Arg::with_name("max_iter")
+                .help("maximum number of iterations")
                 .takes_value(true)
                 .short("i")
                 .long("iter")
@@ -201,8 +201,8 @@ pub fn parse_cmd_line() -> Args {
     let snps_fname = matches.value_of("GTs").unwrap().to_string();
     let phen_fname = matches.value_of("phen").unwrap().to_string();
     let dists_fname = matches.value_of("dist").unwrap().to_string();
-    let iterations =
-        clap::value_t!(matches.value_of("iterations"), f32).unwrap_or_else(|e| e.exit()) as usize;
+    let max_iter =
+        clap::value_t!(matches.value_of("max_iter"), f32).unwrap_or_else(|e| e.exit()) as usize;
     let log_every =
         clap::value_t!(matches.value_of("log_every"), f32).unwrap_or_else(|e| e.exit()) as usize;
     let delta = clap::value_t!(matches.value_of("delta"), f32).unwrap_or_else(|e| e.exit());
@@ -263,7 +263,7 @@ pub fn parse_cmd_line() -> Args {
         snps_fname,
         phen_fname,
         dists_fname,
-        iterations,
+        max_iter,
         log_every,
         delta,
         gt_weights,

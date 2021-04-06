@@ -37,7 +37,7 @@ fn main() {
     println!("Running HHS...");
     calc.hhs_update_scores(
         args.delta,
-        args.iterations,
+        args.max_iter,
         args.log_every,
         args.log_fname.as_ref(),
     );
