@@ -344,12 +344,16 @@ impl Calc {
         let mut active: Vec<usize> = Vec::with_capacity(orig_scores.len());
 
         for (i, &score) in orig_scores.iter().enumerate() {
-            if score > 0. {
+            if score > 0.0 {
                 scores.push(score);
                 active.push(i);
             }
         }
         let sum: f32 = scores.iter().sum();
+        // we will set negative scores to 0.0 later and subsequently drop scores that 
+        // are <= 0.0. in order to not trip over float-comparisons, we will use this
+        // threshold instead of zero:
+        let drop_below_zero_threshold = sum / scores.len() as f32 * 1e-6;
 
         let mut new_scores: Vec<f32> = vec![0.; scores.len()];
         scores.shrink_to_fit();
@@ -373,9 +377,11 @@ impl Calc {
                 .zip(&active)
                 .zip(&scores)
                 .for_each(|((new_score, &idx_i), current_score)| {
+                    // the p1g1g1 with itself is the p1g1
                     let p1g1 = self.get_p1g1g1(&self.snps_arr[idx_i], &self.snps_arr[idx_i]);
-
+                    // scale the score by the prevalence of the genotype--phenotype interaction
                     let mut tmp_score = current_score * p1g1;
+                    // the score decreases according to all the overlaps with the other variants
                     for (&idx_j, other_score) in active.iter().zip(scores.iter()) {
                         if idx_i == idx_j {
                             continue;
@@ -384,15 +390,17 @@ impl Calc {
                             * self.get_p1g1g1(&self.snps_arr[idx_i], &self.snps_arr[idx_j])
                             * delta;
                     }
-                    if tmp_score < 0. {
-                        tmp_score = 0.;
+                    // no negative scores allowed
+                    if tmp_score < 0.0 {
+                        tmp_score = 0.0;
                     }
                     *new_score = tmp_score / p1g1;
                 });
 
             // remove the indices of SNPs whose score fell below 0 from `active`
             for i in (0..active.len()).rev() {
-                if new_scores[i] <= 1e-5 {
+                // to not get tripped by float-comparisons just use a small value instead of zero
+                if new_scores[i] <= drop_below_zero_threshold {
                     active.swap_remove(i);
                     new_scores.swap_remove(i);
                 }
