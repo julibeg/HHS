@@ -35,26 +35,20 @@ impl BitArrNa {
         BitArrNa { bits, not_nas }
     }
 
-    pub fn from_string(string: &str, na_char: char) -> Result<BitArrNa, String> {
+    /// generate `BitArrNa` from a string holding '0's and '1's. any other character is assumed
+    /// to represent a missing value.
+    pub fn from_string(string: &str) -> BitArrNa {
         let mut bitarr = BitArrNa::new(string.len());
         for (i, c) in string.chars().enumerate() {
-            if c == '0' {
-                continue;
-            } else if c == '1' {
+            // `bitarr` is initialised with zeros
+            if c == '1' {
                 bitarr.bits.set(i, true);
-            } else if c == na_char {
+            } else if c != '0' {
+                // neither '0' nor '1' --> missing value
                 bitarr.not_nas.set(i, false);
-            } else {
-                return Err(format!(
-                    "Char at position {} was \'{}\'; expected \'0\', \'1\' or \'{}\'.",
-                    i + 1,
-                    c,
-                    na_char
-                ));
             }
         }
-
-        Ok(bitarr)
+        bitarr
     }
 
     pub fn dist<T>(&self, other: &BitArrNa) -> T

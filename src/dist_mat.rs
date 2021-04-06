@@ -57,7 +57,7 @@ where
             let label = row.next().unwrap();
             // check if the label matches up with the corresponding field
             // in the header; throw error otherwise.
-            if label != &labels[i] {
+            if label != labels[i] {
                 eprintln!(
                     "Error: \"{}\" is expected to hold a symmetric matrix, but the\
                     header and row labels do not match up at position {} with \"{}\"\
@@ -88,7 +88,7 @@ where
                 .collect::<Result<Vec<T>, _>>()?;
             // There are no entries to the right of the diagonal in the final row and
             // it is going to be empty --> don't append it to `mat`.
-            if dists.len() > 0 {
+            if !dists.is_empty() {
                 mat.push(dists);
             }
         }

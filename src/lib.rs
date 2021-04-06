@@ -4,7 +4,7 @@ use bitvec::slice::AsBits;
 use dist_mat::DistMat;
 use flate2::read::GzDecoder;
 use float_cmp::approx_eq;
-use itertools::izip;
+use itertools::{izip, Itertools};
 use ndarray::{Array1, Array2};
 use rayon::prelude::*;
 use std::{error, fmt, fs, io, io::prelude::*};
@@ -29,8 +29,6 @@ pub enum StrainsWith {
 #[derive(fmt::Debug)]
 pub struct Args {
     pub snps_fname: String,
-    pub snps_na_char: char,
-    pub snps_file_transposed: bool,
     pub phen_fname: String,
     pub dists_fname: String,
     pub iterations: usize,
@@ -62,6 +60,7 @@ pub struct Calc {
     pub dist_weight: f32,
     pub p1g1_filter: u32,
     pub snps_arr: Vec<BitArrNa>,
+    pub snps_var_ids: Vec<String>,
     pub phen: bv::BitVec,
     pub dists: DistMat<f32>,
     pub avg_dists: Option<Array1<f32>>,
@@ -73,23 +72,29 @@ impl Calc {
     pub fn from_args(args: &Args) -> Calc {
         let dists = DistMat::from_csv_symmetric(&args.dists_fname).unwrap_or_else(|err| {
             eprintln!(
-                "Error processing distance file \"{}\": {}",
+                "Error parsing distance file \"{}\": {}",
                 args.dists_fname, err
             );
             std::process::exit(1);
         });
         let (phen, phen_sample_ids) = read_phen(&args.phen_fname).unwrap_or_else(|err| {
             eprintln!(
-                "Error processing phenotype file \"{}\": {}",
+                "Error parsing phenotype file \"{}\": {}",
                 args.phen_fname, err
             );
             std::process::exit(1);
         });
-        if phen_sample_ids != dists.labels {
+        let (snps_sample_ids, snps_var_ids, snps_arr) =
+            read_snps(&args.snps_fname).unwrap_or_else(|err| {
+                eprintln!("Error parsing SNPs file \"{}\": {}", args.snps_fname, err);
+                std::process::exit(1);
+            });
+        // make sure that all 3 input files featured the same samples
+        if !(phen_sample_ids == dists.labels && dists.labels == snps_sample_ids) {
             eprintln!(
-                "Error: Sample labels in the distance file \"{}\" and phenotype file \
-                \"{}\" are not equal.",
-                &args.dists_fname, &args.phen_fname
+                "Error: Sample labels in the distance file \"{}\", \
+                genotype file \"{}\", and phenotype file \"{}\" are not equal.",
+                &args.dists_fname, &args.snps_fname, &args.phen_fname
             );
             std::process::exit(1);
         }
@@ -102,11 +107,8 @@ impl Calc {
             avg_dist_strains: args.avg_dist_strains.clone(),
             dist_weight: args.dist_weight,
             p1g1_filter: args.p1g1_filter,
-            snps_arr: if args.snps_file_transposed {
-                read_snps_transposed(&args.snps_fname, args.snps_na_char)
-            } else {
-                read_snps(&args.snps_fname, args.snps_na_char)
-            },
+            snps_arr,
+            snps_var_ids,
             phen,
             dists,
             avg_dists: None,
@@ -168,24 +170,18 @@ impl Calc {
         self.dists.avg_pairwise_dist(&indices) as f32
     }
 
-    pub fn write_avg_dists(&self, fname: &str) {
+    pub fn write_avg_dists(&self, fname: &str) -> Result<(), Box<dyn error::Error>> {
         let dists = self
             .avg_dists
             .as_ref()
             .expect("Error: No average distances calculated yet.");
-        // check if there are scores to write and write them
-        let mut file = fs::File::create(fname).unwrap_or_else(|err| {
-            eprintln!(
-                "Error opening file '{}' to write avg. pairwise distances to: {}",
-                fname, err
-            );
-            std::process::exit(1);
-        });
-        for dist in dists.iter() {
-            writeln!(file, "{}", dist).unwrap_or_else(|err| {
-                panic!("Error writing avg. pairwise distance '{}': {}", dist, err)
-            });
+        // open file
+        let mut file = fs::File::create(fname)?;
+        writeln!(file, "varID,avg_pw_dist")?;
+        for (dist, var_id) in dists.iter().zip(&self.snps_var_ids) {
+            writeln!(file, "{},{}", var_id, dist)?;
         }
+        Ok(())
     }
 
     pub fn prepare_weights(&mut self) {
@@ -332,7 +328,7 @@ impl Calc {
         if let Some(fname) = logfile_fname {
             if log_every > 0 {
                 logfile = Some(fs::File::create(&fname).unwrap_or_else(|err| {
-                    eprintln!("Error opening log file '{}': {}", fname, err);
+                    eprintln!("Error opening log file \"{}\": {}", fname, err);
                     std::process::exit(1);
                 }));
             }
@@ -368,8 +364,8 @@ impl Calc {
             // potential logging
             if let Some(file) = logfile.as_mut() {
                 if n % log_every == 0 {
-                    write!(file, "{} iterations: ", n).expect("Error writing output");
-                    write_scores_single_line(file, &scores, &active);
+                    write!(file, "{} iterations:", n).expect("Error writing output");
+                    log_scores(file, &scores, &self.snps_var_ids, &active);
                 }
             }
             new_scores
@@ -418,7 +414,7 @@ impl Calc {
         // if there's logging, also log the final result
         if let Some(file) = logfile.as_mut() {
             write!(file, "{} iterations: ", n_iter).expect("Error writing output");
-            write_scores_single_line(file, &scores, &active);
+            log_scores(file, &scores, &self.snps_var_ids, &active);
         }
 
         // due to the use of swap_remove above, the SNPs are no longer sorted --> sort again
@@ -456,15 +452,15 @@ impl Calc {
             .as_ref()
             .expect("Error: No scores calculated yet.");
         // check if there are scores to write and write them
-        writeln!(buffer, "SNP_idx, score, p1g1, p0g1, dist").expect("Error writing output");
-        if (scores.len() == indices.len()) & !scores.is_empty() {
+        writeln!(buffer, "SNP_idx,score,p1g1,p0g1,dist").expect("Error writing output");
+        if (scores.len() == indices.len()) && !scores.is_empty() {
             for (i, score) in indices.iter().zip(scores) {
                 let (p1g1, _, _, p0g1) = self.pg_counts(&self.snps_arr[*i]);
                 let dist = dists[*i];
                 writeln!(
                     buffer,
-                    "{}, {:.2}, {}, {}, {:.3}",
-                    i, score, p1g1, p0g1, dist
+                    "{},{:.2},{},{},{:.3}",
+                    self.snps_var_ids[*i], score, p1g1, p0g1, dist
                 )
                 .unwrap_or_else(|_| panic!("Error writing score with index {}", i));
             }
@@ -473,122 +469,104 @@ impl Calc {
 }
 
 /// Write scores to a buffer in a single line in `index: score` format
-pub fn write_scores_single_line<Buffer, T1, T2>(buffer: &mut Buffer, scores: &[T1], indices: &[T2])
-where
+pub fn log_scores<Buffer, T>(
+    buffer: &mut Buffer,
+    scores: &[T],
+    var_ids: &[String],
+    indices: &[usize],
+) where
     Buffer: io::Write,
-    T1: fmt::Display,
-    T2: fmt::Display,
+    T: fmt::Display,
 {
     // check if there are scores to write and write them
     if (scores.len() == indices.len()) & !scores.is_empty() {
-        let mut zipped = indices.iter().zip(scores);
-        let (i, score) = zipped.next().unwrap();
-        write!(buffer, "{}: {}", i, score)
-            .unwrap_or_else(|_| panic!("Error writing score with index {}", i));
-        for (i, score) in zipped {
-            write!(buffer, ", {}: {}", i, score)
-                .unwrap_or_else(|_| panic!("Error writing score with index {}", i));
-        }
+        write!(
+            buffer,
+            "{}",
+            indices
+                .iter()
+                .zip(scores)
+                .map(|(i, score)| format!("{}:{}", var_ids[*i], score))
+                .collect::<Vec<String>>()
+                .join(",")
+        )
+        .expect("Error logging score");
     }
-    writeln!(buffer).expect("Error writing output");
+    writeln!(buffer).expect("Error logging score");
 }
 
 /// read input file with snps in rows and samples in columns like
 /// 010X11001
 /// 01100X010
-/// where 'X' specifies unknown values
-pub fn read_snps(infname: &str, na_char: char) -> Vec<BitArrNa> {
+/// where anything other than '0' or '1' specifies unknown values
+pub fn read_snps(
+    infname: &str,
+) -> Result<(Vec<String>, Vec<String>, Vec<BitArrNa>), Box<dyn error::Error>> {
     let mut snps_arr: Vec<BitArrNa> = Vec::new();
-
-    let infile = fs::File::open(&infname).unwrap_or_else(|err| {
-        eprintln!("Error opening SNPs input file '{}': {}", infname, err);
-        std::process::exit(1);
-    });
-    let lines = io::BufReader::new(infile).lines();
-
+    // box file object to deal with different types from
+    // `fs::File::open()` and `GzDecoder::new()`
+    let mut file: Box<dyn io::Read> = Box::new(fs::File::open(infname)?);
+    if infname.ends_with("gz") {
+        file = Box::new(GzDecoder::new(file))
+    }
+    let mut lines = io::BufReader::new(file).lines();
+    // the first line holds the comma-separated sample names
+    let first_line = lines.next().unwrap_or_else(|| {
+        eprintln!("Error: Looks like the SNP file \"{}\" is empty", infname);
+        std::process::exit(1)
+    })?;
+    let samples: Vec<String> = first_line
+        .trim()
+        .split(',')
+        .map(|smp| smp.to_string())
+        .collect();
+    let num_samples = samples.len();
+    let mut var_ids: Vec<String> = Vec::new();
+    // now iterate over the remaining lines. they have the format "VarID:0010101010X01..."
     for (i, line) in lines.enumerate() {
         if let Ok(line) = line {
-            let snp = BitArrNa::from_string(&line, na_char).unwrap_or_else(|err| {
+            // split the line into the variant label and the string with the actual genotypes
+            let (var_id, snps_str) =
+                line.trim()
+                    .splitn(2, ':')
+                    .collect_tuple()
+                    .unwrap_or_else(|| {
+                        eprintln!(
+                            "Error: Looks like the format in the {}th line of the SNP file \
+                    \"{}\" did not match what was expected (e.g. \"VarID:0010101001...\"). \
+                    The first 50 characters were \"{}\".",
+                            i + 2,
+                            infname,
+                            &line[..50]
+                        );
+                        std::process::exit(1)
+                    });
+            var_ids.push(var_id.to_string());
+            // check whether there are as many genotypes as there were samples in the first line
+            if snps_str.len() != num_samples {
                 eprintln!(
-                    "Error generating SNP-bitarr at input file '{}' line {}: {}",
+                    "Error parsing genotype file \"{}\": The number of genotypes for the \
+                variant \"{}\" was different from the number of samples provided in the \
+                first line ({} vs. {}).",
                     infname,
-                    i + 1,
-                    err
+                    var_id,
+                    snps_str.len(),
+                    num_samples
                 );
                 std::process::exit(1);
-            });
+            }
+            let snp = BitArrNa::from_string(&snps_str);
             snps_arr.push(snp);
         } else {
-            eprintln!("Error reading input file '{}' at line {}", infname, i + 1);
+            eprintln!(
+                "Error reading SNP input file \"{}\" at line {}.",
+                infname,
+                i + 2
+            );
             std::process::exit(1);
         }
     }
-    snps_arr
-}
-
-/// read input file with snps in columns and samples in rows like
-/// 00
-/// 11
-/// 01
-/// X0
-/// 10
-/// 1X
-/// 00
-/// 01
-/// 10
-/// where 'X' specifies unknown values
-pub fn read_snps_transposed(infname: &str, na_char: char) -> Vec<BitArrNa> {
-    // read file first to determine dimensions
-    let infile = fs::File::open(&infname).unwrap_or_else(|err| {
-        eprintln!("Error opening SNPs input file '{}': {}", infname, err);
-        std::process::exit(1);
-    });
-    let mut lines = io::BufReader::new(infile).lines();
-    // get first line and count number of SNPs
-    let n_snps = match lines.next() {
-        Some(Ok(line)) => line.len(),
-        _ => {
-            eprintln!("Error parsing SNPs input file. Is it empty?");
-            std::process::exit(1);
-        }
-    };
-    // get number of lines --> number of samples
-    let n_samples = lines.count() + 1; // add 1 for the first line
-
-    // initialize empty snp_arr with `BitArrNa`s of the correct length
-    let mut snps_arr: Vec<BitArrNa> = (0..n_snps).map(|_| BitArrNa::new(n_samples)).collect();
-
-    // now the buffer's iterator has been consumed and we have to open the file again. we can call
-    // `unwrap` here, because it has already been opened without error.
-    let infile = fs::File::open(&infname).unwrap();
-    let lines = io::BufReader::new(infile).lines();
-
-    for (i, line) in lines.enumerate() {
-        if let Ok(sample) = line {
-            for (j, c) in sample.chars().enumerate() {
-                if c == '0' {
-                    continue;
-                } else if c == '1' {
-                    snps_arr[j].bits.set(i, true);
-                } else if c == na_char {
-                    snps_arr[j].not_nas.set(i, false);
-                } else {
-                    eprintln!(
-                        "Error parsing SNPs file '{}': Char at position {} was '{}'; expected '0', '1' or '{}'.",
-                        infname,
-                        j + 1,
-                        c,
-                        na_char
-                    );
-                    std::process::exit(1);
-                }
-            }
-        } else {
-            eprintln!("Error reading input file '{}' at line {}", infname, i + 1);
-            std::process::exit(1);
-        }
-    }
-    snps_arr
+    Ok((samples, var_ids, snps_arr))
 }
 
 /// reads csv with phenotype data. agnostic to whether there is a header.
