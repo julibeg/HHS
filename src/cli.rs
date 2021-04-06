@@ -1,12 +1,5 @@
 use crate::{Args, GtWeights, StrainsWith};
 
-const ALPHANUM_EXCEPT_01: &[&str] = &[
-    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S",
-    "T", "U", "V", "W", "X", "Y", "Z", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l",
-    "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "2", "3", "4", "5", "6",
-    "7", "8", "9",
-];
-
 pub fn parse_cmd_line() -> Args {
     let matches = clap::App::new("Hungry, Hungry SNPos")
         .about(
@@ -58,25 +51,6 @@ pub fn parse_cmd_line() -> Args {
                 .required(true)
                 .value_name("FILE")
                 .display_order(3),
-        )
-        .arg(
-            clap::Arg::with_name("NA-char")
-                .help("character [A-Za-z2-9] specifying missing values in SNPs file")
-                .takes_value(true)
-                .default_value("X")
-                .possible_values(ALPHANUM_EXCEPT_01)
-                .hide_possible_values(true)
-                .short("n")
-                .long("NA-value")
-                .value_name("CHAR")
-                .display_order(4),
-        )
-        .arg(
-            clap::Arg::with_name("transposed")
-                .help("use when SNPs input file is transposed (SNPs per column, samples per row)")
-                .short("T")
-                .long("transposed")
-                .display_order(5),
         )
         .arg(
             clap::Arg::with_name("iterations")
@@ -218,8 +192,6 @@ pub fn parse_cmd_line() -> Args {
 
     // it's safe to call `unwrap` on arguments `required` by clap.
     let snps_fname = matches.value_of("SNPs").unwrap().to_string();
-    let snps_na_char = matches.value_of("NA-char").unwrap().chars().next().unwrap();
-    let snps_file_transposed = matches.is_present("transposed");
     let phen_fname = matches.value_of("phen").unwrap().to_string();
     let dists_fname = matches.value_of("dist").unwrap().to_string();
     let iterations =
@@ -282,8 +254,6 @@ pub fn parse_cmd_line() -> Args {
 
     Args {
         snps_fname,
-        snps_na_char,
-        snps_file_transposed,
         phen_fname,
         dists_fname,
         iterations,
