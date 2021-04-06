@@ -31,22 +31,37 @@ in `/target/release`
 
 
 ## Usage example
-Input files to test the installation are in `example_files.tar.gz`. They are from a highly multidrug-resistant *M. tuberculosis* dataset with phenotype data for resistance to isoniazid.
-The pairwise distances are already provided in `inh.dist`, but could be generated with 
-```
-./binary_hamming_dist -i inh.gt -n 2 -o inh.dists -t N
-```
-using [binary_hamming_dist](https://github.com/julibeg/binary-hamming-dist) with `N` threads. 
+Input files to test the installation are in `example_files.tar.gz`. They are from a highly multidrug-resistant *M. tuberculosis* dataset with phenotype data for resistance to isoniazid. The data were used in the initial publication of the algorithm (https://doi.org/10.1371/journal.pcbi.1008518).
 
+The archive `example_files.tar.gz` contains three files: `inh.hhs.gt.gz`, `inh.dists.csv.gz`, and `inh.phen.csv`.
 
-For running 30,000 iterations (the default) of HHS please type 
+To run 30,000 iterations (the default) of HHS, download the binary (or build with cargo), navigate into the 
+directory where the archive was extracted and type 
 ```
-./hhs -s inh.gt -p inh.phen -d inh.dists -n 2 -t N --p1g1_filter 3 -T
+./hhs -g inh.hhs.gt.gz -p inh.phen.csv -d inh.dists.csv.gz -t 6 --p1g1_filter 3 -o inh.hhs.result
 ```
-again with `N` denoting the desired number of threads used. 
-`-T` is required because `inh.gt` holds a SNP per column instead of per row, which is the default.
-The program should generate `16329, 20794, 20795, 20805, 20815, 20819, 20836` which are the indices of the final
-SNPs remaining. The SNP positions of the dataset can be found in `inh.gt.pos`. Looking up the respective
-indices yields `1674263, 2155168, 2155169, 2155259, 2155541, 2155607, 2155786`. These genomic positions are all 
-within the *inhA* and *katG* genes, which makes sense as isoniazid attacks the gene product of *inhA*
-and is activated by the product of *katG*.
+replacing `N` with the desired number of threads. 
+
+As we can see from the messages printed to STDOUT, the scores converged after about 10,000 iterations. 
+The generated output file `inh.hhs.result` should look like 
+```
+./hhs -g inh.hhs.gt.gz -p inh.phen.csv -d inh.dists.csv.gz -t 6 --p1g1_filter 3 -o inh.hhs.result
+VarID,score,p1g1,p0g1,dist
+Chromosome_1674263_T_C,764979.25,3,0,8.498
+Chromosome_2154857_C_A,14533.56,3,1,11.477
+Chromosome_2155168_C_G,T,A,1311184.25,1676,12,9.818
+Chromosome_2155169_T_C,1693975.75,8,0,8.798
+Chromosome_2155259_C_T,A,1413699.38,3,0,10.776
+Chromosome_2155541_A_G,C,1900279.00,10,0,10.793
+Chromosome_2155607_C_T,3900517.75,4,0,14.937
+```
+with the command that has been used to invoke the program in the first line and a CSV with the results below. 
+The columns in the CSV are the variant ID, final score, number of samples with the phenotype and genotype, 
+number of samples with the genotype but without the phenotype, and the average pairwise distance among all samples
+with the genotype. 
+
+The variants with locations starting with `2155...` are within the *katG* gene. The other one is from *inhA*. Both genes have
+been shown to be related to isoniazid resistance (the prodrug isoniazid is activated by the gene product of *katG* and 
+then targets the enzyme encoded by *inhA*). Due to extensive co-occurring resistance with rifampicin, ethambutol, and streptomycin 
+(among others) in this dataset, many GWAS implementations would spuriously also ascribe strong significance to variants in genes associated 
+with resistance agains these drugs (like *rpoB*, *embB*, or *rrs*, respectively).
