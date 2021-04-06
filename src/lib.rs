@@ -452,7 +452,7 @@ impl Calc {
             .as_ref()
             .expect("Error: No scores calculated yet.");
         // check if there are scores to write and write them
-        writeln!(buffer, "SNP_idx,score,p1g1,p0g1,dist").expect("Error writing output");
+        writeln!(buffer, "VarID,score,p1g1,p0g1,dist").expect("Error writing output");
         if (scores.len() == indices.len()) && !scores.is_empty() {
             for (i, score) in indices.iter().zip(scores) {
                 let (p1g1, _, _, p0g1) = self.pg_counts(&self.snps_arr[*i]);
