@@ -3,31 +3,38 @@ use crate::{Args, GtWeights, StrainsWith};
 pub fn parse_cmd_line() -> Args {
     let matches = clap::App::new("Hungry, Hungry SNPos")
         .about(
-            "Run HHS on a list of SNPs, a pairwise distance matrix and binary phenotypes (e.g. \
-            antibiotic resistance). \
-            The algorithm finds SNPs associated with the positive phenotype while removing \
-            false-positives caused by overlapping genotypes (e.g. co-occurrent resistance).\n\
-            The input file holding the SNPs should look like: \n\n\
-            10X0101X \n\
-            X00X1001 \n\n\
-            with one SNP per row (and one sample per column). 'X' denotes missing \
-            values (any character other than '0' or '1' can be selected to represent NAs). \
-            The file can also be transposed (one sample per row and one SNP per column) if the \
-            -T flag is provided.\n\
-            The input file with the phenotypes should have the same layout but feature only a \
-            single line. Samples with missing phenotype values are not allowed (i.e. no 'X's in \
-            the phenotype file) and should be removed from all input files prior analysis. \n\
-            The symmetric pairwise distance matrix should be provided in a csv file with '0's in \
-            the diagonal.
+            "Run HHS on a binary genotype matrix, pairwise inter-sample distances, \
+            and binary phenotypes (e.g. antibiotic resistance). \
+            The algorithm finds variants associated with the phenotype while removing \
+            false-positives caused by overlapping genotypes (e.g. co-occurrent resistance).\n\n\
+
+            The input file holding the variants should look like:\n\
+            ---------------------------------------\n\
+            SampleID1,SampleID2,SampleID3,...\n\
+            VarID1:10X0101X...\n\
+            VarID2:X00X1001...\n\
+            ...\n\
+            ---------------------------------------\n\
+            with the sample names in the first line and the genotypes of the single variants \
+            below. Any character other than '0' or '1' can represent missing values.\n\n\
+            
+            The phenotypes should be provided in a CSV file with '0' and '1' denoting the \
+            absence or presence of the phenotype, respectively. Missing values are not \
+            allowed in the phenotype file and such samples should be removed from all \
+            files before running the program.\n\n\
+
+            To account for population structure, a symmetric pairwise distance matrix of the \
+            samples should be provided in a CSV file with the sample names in the header (i.e. \
+            the first row) and in the index column (and '0's in the main diagonal).
             ",
         )
         .version(clap::crate_version!())
         .arg(
-            clap::Arg::with_name("SNPs")
-                .help("SNPs input file")
+            clap::Arg::with_name("GTs")
+                .help("genotypes input file")
                 .takes_value(true)
-                .short("s")
-                .long("snps")
+                .short("g")
+                .long("gt")
                 .required(true)
                 .value_name("FILE")
                 .display_order(1),
@@ -191,7 +198,7 @@ pub fn parse_cmd_line() -> Args {
         .get_matches();
 
     // it's safe to call `unwrap` on arguments `required` by clap.
-    let snps_fname = matches.value_of("SNPs").unwrap().to_string();
+    let snps_fname = matches.value_of("GTs").unwrap().to_string();
     let phen_fname = matches.value_of("phen").unwrap().to_string();
     let dists_fname = matches.value_of("dist").unwrap().to_string();
     let iterations =
