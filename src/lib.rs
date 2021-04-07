@@ -431,12 +431,20 @@ impl Calc {
             n_iter += 1;
         }
 
-        println!(
-            "\nConvergence after {}-{} iterations: {} SNPs remain\n",
-            n_iter - 1000,
-            n_iter,
-            scores.len()
-        );
+        if n_iter >= max_iter {
+            println!(
+                "\nMax. number of iterations ({}) exceeded: {} SNPs remain\n",
+                max_iter,
+                scores.len()
+            );
+        } else {
+            println!(
+                "\nConvergence after {}-{} iterations: {} SNPs remain\n",
+                n_iter - 1000,
+                n_iter,
+                scores.len()
+            );
+        }
 
         // if there's logging, also log the final result
         if let Some(file) = logfile.as_mut() {

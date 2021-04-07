@@ -66,7 +66,7 @@ pub fn parse_cmd_line() -> Args {
                 .short("i")
                 .long("iter")
                 .value_name("NUM")
-                .default_value("3e4")
+                .default_value("3e5")
                 .display_order(6),
         )
         .arg(
