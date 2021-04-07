@@ -541,7 +541,7 @@ pub fn read_snps(
     // box file object to deal with different types from
     // `fs::File::open()` and `GzDecoder::new()`
     let mut file: Box<dyn io::Read> = Box::new(fs::File::open(infname)?);
-    if infname.ends_with("gz") {
+    if infname.ends_with(".gz") {
         file = Box::new(GzDecoder::new(file))
     }
     let mut lines = io::BufReader::new(file).lines();
