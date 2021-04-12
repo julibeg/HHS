@@ -78,7 +78,7 @@ To run the script, type the following (we can't use `bcftools` for this because 
 ```
 $ gunzip -c inh.vcf.gz | ./vcf2hhs.py | gzip -c > inh.hhs.gt.gz
 ```
-which might take a couple seconds. Now we got the binary genotype matrix, let's sneak a peek to confirm the format
+which might take a couple seconds. Now that we got the binary genotype matrix, let's sneak a peek to confirm the format
 ```
 $ zcat inh.hhs.gt.gz | head -n5 | cut -c-100
 ERR2512419,ERR2512432,ERR2512444,SRR6046861,ERR2512448,ERR2512616,ERR2512464,ERR2512467,SRR6046574,E
