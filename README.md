@@ -88,7 +88,7 @@ Chromosome_238_G_T:0000000000000000000000000000000000000000000000000000000000000
 Chromosome_365_C_T:000000000000000000000000000000000000000000000000000000000000000000000000000000000
 ```
 This looks like what we expect. To run HHS, we also need a pairwise distance matrix. Ideally, the distances would be obtained
-from a phylogeny, but if only the genotype matrix is available, we can calculate the pairwise binary hamming distances with [binary_hamming_dist](https://github.com/julibeg/binary-hamming-dist). It expects a header-less file holding only strings of '0's and '1's as input (while any other character denotes missing values) and writes the distances as CSV without any labels. The script in `/scripts/pw_bin_hamm_dists_from_gt.sh` does the relevant data wrangling in order to add the header and index column. We call it with 
+from a phylogeny, but if only the genotype matrix is available, we can calculate the pairwise binary hamming distances with [binary-hamming-dist](https://github.com/julibeg/binary-hamming-dist). It expects a header-less file holding only strings of '0's and '1's as input (while any other character denotes missing values) and writes the distances as CSV without any labels. The script in `/scripts/pw_bin_hamm_dists_from_gt.sh` does the relevant data wrangling in order to add the header and index column. We call it with 
 ```
 ./pw_bin_hamm_dists_from_gt.sh inh.hhs.gt.gz | gzip -c > inh.dists.csv.gz
 ```
