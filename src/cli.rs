@@ -205,7 +205,7 @@ pub fn parse_cmd_line() -> Args {
         clap::value_t!(matches.value_of("max_iter"), f32).unwrap_or_else(|e| e.exit()) as usize;
     let log_every =
         clap::value_t!(matches.value_of("log_every"), f32).unwrap_or_else(|e| e.exit()) as usize;
-    let delta = clap::value_t!(matches.value_of("delta"), f32).unwrap_or_else(|e| e.exit());
+    let delta = clap::value_t!(matches.value_of("delta"), f64).unwrap_or_else(|e| e.exit());
     let gt_weights = match matches.value_of("gt_weights").unwrap() {
         "all" => GtWeights::All(None),
         "single" => GtWeights::Single(None),
