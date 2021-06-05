@@ -33,7 +33,7 @@ pub struct Args {
     pub dists_fname: String,
     pub max_iter: usize,
     pub log_every: usize,
-    pub delta: f32,
+    pub delta: f64,
     pub gt_weights: GtWeights,
     pub rel_gt_weight: f32,
     pub phen_weights: Option<Array2<f32>>,
@@ -64,7 +64,7 @@ pub struct Calc {
     pub phen: bv::BitVec,
     pub dists: DistMat<f32>,
     pub avg_dists: Option<Array1<f32>>,
-    pub scores: Option<Array1<f32>>,
+    pub scores: Option<Array1<f64>>,
     pub active: Option<Vec<usize>>,
 }
 
@@ -268,9 +268,9 @@ impl Calc {
             }
         });
 
-        let mut scores: Array1<f32> = Array1::zeros(counts.dim());
+        let mut scores: Array1<f64> = Array1::zeros(counts.dim());
         ndarray::par_azip!((score in &mut scores, &count in &counts, &dist in avg_pw_dists)
-            *score = count + (dist - 1.) * count * self.dist_weight);
+            *score = (count + (dist - 1.) * count * self.dist_weight).into());
 
         self.scores = Some(scores);
     }
@@ -318,7 +318,7 @@ impl Calc {
 
     pub fn hhs_update_scores(
         &mut self,
-        delta: f32,
+        delta: f64,
         max_iter: usize,
         log_every: usize,
         logfile_fname: Option<&String>,
@@ -340,7 +340,7 @@ impl Calc {
             .expect("Error: Cannot run HHS iteration with unset scores.")
             .clone();
 
-        let mut scores: Vec<f32> = Vec::with_capacity(orig_scores.len());
+        let mut scores: Vec<f64> = Vec::with_capacity(orig_scores.len());
         let mut active: Vec<usize> = Vec::with_capacity(orig_scores.len());
 
         for (i, &score) in orig_scores.iter().enumerate() {
@@ -349,13 +349,13 @@ impl Calc {
                 active.push(i);
             }
         }
-        let sum: f32 = scores.iter().sum();
+        let sum: f64 = scores.iter().sum();
         // we will set negative scores to 0.0 later and subsequently drop scores that
         // are <= 0.0. in order to not trip over float-comparisons, we will use this
         // threshold instead of zero:
-        let zero_threshold = sum / scores.len() as f32 * 1e-6;
+        let zero_threshold = sum / scores.len() as f64 * 1e-6;
 
-        let mut new_scores: Vec<f32> = vec![0.; scores.len()];
+        let mut new_scores: Vec<f64> = vec![0.; scores.len()];
         scores.shrink_to_fit();
         active.shrink_to_fit();
 
@@ -409,7 +409,7 @@ impl Calc {
                 }
             }
             // rescale the new scores
-            let norm_factor = sum / new_scores.iter().sum::<f32>();
+            let norm_factor = sum / new_scores.iter().sum::<f64>();
             new_scores.iter_mut().for_each(|x| *x *= norm_factor);
 
             // every 1,000th iterations compare the old and new scores and stop if they
@@ -455,19 +455,19 @@ impl Calc {
         // due to the use of swap_remove above, the SNPs are no longer sorted --> sort again
         let mut zipped = active.iter().zip(scores).collect::<Vec<_>>();
         zipped.sort_by_key(|(i, _)| *i);
-        let (active, scores): (Vec<usize>, Vec<f32>) = zipped.into_iter().unzip();
+        let (active, scores): (Vec<usize>, Vec<f64>) = zipped.into_iter().unzip();
         self.scores = Some(Array1::from(scores));
         self.active = Some(active);
     }
 
-    fn get_p1g1g1(&self, snps_a: &BitArrNa, snps_b: &BitArrNa) -> f32 {
-        let mut p1g1g1 = 0f32;
+    fn get_p1g1g1(&self, snps_a: &BitArrNa, snps_b: &BitArrNa) -> f64 {
+        let mut p1g1g1 = 0f64;
         for (p1, g1_a, g1_b) in izip!(
             self.phen.as_slice(),
             snps_a.bits.as_slice(),
             snps_b.bits.as_slice(),
         ) {
-            p1g1g1 += (p1 & g1_a & g1_b).count_ones() as f32;
+            p1g1g1 += (p1 & g1_a & g1_b).count_ones() as f64;
         }
         p1g1g1
     }

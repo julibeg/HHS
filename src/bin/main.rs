@@ -1,4 +1,4 @@
-use hhs::*;
+use hhs::{cli, Calc};
 
 fn main() {
     let args = cli::parse_cmd_line();
