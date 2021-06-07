@@ -353,7 +353,7 @@ impl Calc {
         // we will set negative scores to 0.0 later and subsequently drop scores that
         // are <= 0.0. in order to not trip over float-comparisons, we will use this
         // threshold instead of zero:
-        let zero_threshold = sum / scores.len() as f64 * 1e-6;
+        let zero_threshold = sum / scores.len() as f64 * 1e-2 * delta;
 
         let mut new_scores: Vec<f64> = vec![0.; scores.len()];
         scores.shrink_to_fit();
