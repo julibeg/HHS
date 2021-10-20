@@ -35,9 +35,9 @@ Input files to test the installation are in `example_files.tar.gz`. For a quick 
 
 `example_files.tar.gz` contains three items: `inh.hhs.gt.gz`, `inh.dists.csv.gz`, and `inh.phen.csv`. To run the program, download the binary (or build with `cargo`), navigate into the directory where the archive was extracted and type 
 ```
-./hhs -g inh.hhs.gt.gz -p inh.phen.csv -d inh.dists.csv.gz -t 6 --p1g1_filter 3 -o inh.hhs.result
+./hhs -g inh.hhs.gt.gz -p inh.phen.csv -d inh.dists.csv.gz -t 1 --p1g1_filter 3 -o inh.hhs.result
 ```
-replacing `N` with the desired number of threads. 
+replacing `1` with the desired number of threads. 
 
 As we can see from the messages printed to STDOUT, the scores converged after about 5,000 iterations. 
 The generated output file `inh.hhs.result` should look like 
@@ -73,7 +73,7 @@ The VCF that has been used to generate the files in `example_files.tar.gz` can b
 ```
 $ wget https://myfiles.lshtm.ac.uk/rest/files/public/8a8c80b5771ea6840178b1e0ca853d3e -O inh.vcf.gz
 ```
-In order to process it, type the following (we can't use `bcftools` for this because the VCF has no header except for the sample IDs)
+In order to process it, type the following (we can't use `bcftools` here in this case because the example VCF has no header except for the sample IDs)
 ```
 $ gunzip -c inh.vcf.gz | ./vcf2hhs.py | gzip -c > inh.hhs.gt.gz
 ```
