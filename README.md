@@ -33,7 +33,7 @@ in `/target/release`.
 ## Usage example
 Input files to test the installation are in `example_files.tar.gz`. For a quick tutorial on how these files can be generated from a BCF/VCF, see below. The SNPs are from a highly multidrug-resistant *M. tuberculosis* dataset with phenotype data for resistance to isoniazid. The data were used in the [initial publication](https://doi.org/10.1371/journal.pcbi.1008518) of HHS.
 
-`example_files.tar.gz` contains three items: `inh.hhs.gt.gz`, `inh.dists.csv.gz`, and `inh.phen.csv`. To run the program, download the binary (or build with cargo), navigate into the directory where the archive was extracted and type 
+`example_files.tar.gz` contains three items: `inh.hhs.gt.gz`, `inh.dists.csv.gz`, and `inh.phen.csv`. To run the program, download the binary (or build with `cargo`), navigate into the directory where the archive was extracted and type 
 ```
 ./hhs -g inh.hhs.gt.gz -p inh.phen.csv -d inh.dists.csv.gz -t 6 --p1g1_filter 3 -o inh.hhs.result
 ```
