@@ -6,8 +6,8 @@ pub fn parse_cmd_line() -> Args {
             "Run HHS on a binary genotype matrix, pairwise inter-sample distances, \
             and binary phenotypes (e.g. antibiotic resistance). \
             The algorithm finds variants associated with the phenotype while removing \
-            false-positives caused by overlapping genotypes (e.g. co-occurrent resistance).\n\n\
-
+            false-positives caused by overlapping genotypes (e.g. co-occurrent resistance).\
+            \n\n\
             The input file holding the variants should look like:\n\
             ---------------------------------------\n\
             SampleID1,SampleID2,SampleID3,...\n\
@@ -16,13 +16,13 @@ pub fn parse_cmd_line() -> Args {
             ...\n\
             ---------------------------------------\n\
             with the sample names in the first line and the genotypes of the single variants \
-            below. Any character other than '0' or '1' can represent missing values.\n\n\
-            
+            below. Any character other than '0' or '1' can represent missing values.\
+            \n\n\
             The phenotypes should be provided in a CSV file with '0' and '1' denoting the \
             absence or presence of the phenotype, respectively. Missing values are not \
             allowed in the phenotype file and such samples should be removed from all \
-            files before running the program.\n\n\
-
+            files before running the program.\
+            \n\n\
             To account for population structure, a symmetric pairwise distance matrix of the \
             samples should be provided in a CSV file with the sample names in the header (i.e. \
             the first row) and in the index column (and '0's in the main diagonal).
